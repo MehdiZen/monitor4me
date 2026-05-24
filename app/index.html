@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PC Monitor — CODEC</title>
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- Titlebar -->
+  <div class="titlebar" data-tauri-drag-region>
+    <span class="titlebar-title" data-tauri-drag-region>pc-monitor · codec</span>
+    <button class="settings-btn" id="btn-settings" title="Paramètres">⚙</button>
+    <div class="live-indicator">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">connecting…</span>
+      <span style="margin-left:10px;color:var(--faint)">last tick</span>
+      <span id="last-update" style="margin-left:4px">—</span>
+    </div>
+    <div class="win-btns">
+      <button class="win-btn min"   id="btn-min">&#x2212;</button>
+      <button class="win-btn max"   id="btn-max">&#x25A1;</button>
+      <button class="win-btn close" id="btn-close">&#x2715;</button>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <button class="tab-btn active" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="cpu">CPU</button>
+    <button class="tab-btn" data-tab="gpu">GPU</button>
+    <button class="tab-btn" data-tab="rails">Rails</button>
+    <button class="tab-btn" data-tab="energy">Énergie</button>
+    <button class="tab-btn" data-tab="anomalies">Anomalies</button>
+  </nav>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- ── OVERVIEW ─────────────────────────────────────────────────────── -->
+    <div id="tab-overview" class="tab-panel active">
+
+      <!-- Row 1 · metrics -->
+      <div class="cn-row" style="grid-template-columns:1.2fr 1.1fr 1.1fr 1.2fr">
+
+        <div class="cn-cell">
+          <span class="cn-cap">Wall Power</span>
+          <div style="margin-top:8px;display:flex;align-items:baseline;gap:4px">
+            <span class="cn-big" id="ov-wall">—</span>
+          </div>
+          <div class="cn-sub">consommation au mur</div>
+        </div>
+
+        <div class="cn-cell">
+          <span class="cn-cap">Coût / heure</span>
+          <div style="margin-top:8px">
+            <span class="cn-big" id="ov-cost-h">—</span>
+          </div>
+          <div class="cn-sub">Aujourd'hui réel : <span id="ov-cost-today">—</span></div>
+        </div>
+
+        <div class="cn-cell">
+          <span class="cn-cap">Coût / jour</span>
+          <div style="margin-top:8px">
+            <span class="cn-big" id="ov-cost-day">—</span>
+          </div>
+          <div class="cn-sub">Si usage constant actuel</div>
+        </div>
+
+        <div class="cn-cell">
+          <span class="cn-cap">Statut système</span>
+          <div style="margin-top:10px">
+            <span class="status-badge ok" id="ov-status">—</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Row 2 · hardware -->
+      <div class="cn-row" style="grid-template-columns:1fr 1fr 1fr">
+
+        <div class="cn-cell">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span class="cn-cap">CPU</span>
+            <span class="cn-name">Ryzen 7 7800X3D</span>
+          </div>
+          <div style="margin-top:10px">
+            <div class="cn-kv"><span class="cn-kv-k">Power</span><span class="cn-kv-v" id="ov-cpu">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Température</span><span class="cn-kv-v" id="ov-cpu-temp">—</span></div>
+          </div>
+        </div>
+
+        <div class="cn-cell">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span class="cn-cap">GPU</span>
+            <span class="cn-name">RX 9070 XT</span>
+          </div>
+          <div style="margin-top:10px">
+            <div class="cn-kv"><span class="cn-kv-k">Power</span><span class="cn-kv-v" id="ov-gpu">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Température</span><span class="cn-kv-v" id="ov-gpu-temp">—</span></div>
+          </div>
+        </div>
+
+        <div class="cn-cell">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span class="cn-cap">Stockage &amp; Rails</span>
+            <span style="font-size:10px;font-family:var(--mono);color:var(--faint)">1 / 4 capteurs</span>
+          </div>
+          <div style="margin-top:10px">
+            <div class="cn-kv"><span class="cn-kv-k">NVMe temp</span><span class="cn-kv-v" id="ov-nvme-temp">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Rail +12V</span><span class="cn-kv-v" id="ov-rail12">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Rail +5V</span><span class="cn-kv-v" id="ov-rail5">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Rail +3.3V</span><span class="cn-kv-v" id="ov-rail3v3">—</span></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Row 3 · charts -->
+      <div class="cn-row" style="grid-template-columns:1fr 1fr">
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Wall power · 12 h</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--pwr)"></span>W mur</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-ov-power"></canvas></div>
+        </div>
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Températures · 12 h</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--cpu)"></span>CPU</span>
+              <span><span class="swatch" style="background:var(--gpu)"></span>GPU</span>
+              <span style="color:var(--faint)"><span class="swatch" style="background:var(--crit);opacity:.5"></span>85 °C</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-ov-temp"></canvas></div>
+        </div>
+
+      </div>
+
+      <!-- Row 4 · 3-day cost table -->
+      <div class="cn-row" style="grid-template-columns:1fr">
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:0">
+          <span class="cn-cap" style="margin-bottom:10px">Coût électricité · 3 derniers jours</span>
+          <table class="cost-table" id="cost-3d-table">
+            <thead>
+              <tr>
+                <th>Jour</th>
+                <th>Coût (€)</th>
+                <th>kWh estimé</th>
+              </tr>
+            </thead>
+            <tbody id="cost-3d-tbody">
+              <tr><td colspan="3" style="text-align:center;padding:12px;color:var(--faint)">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── CPU ──────────────────────────────────────────────────────────── -->
+    <div id="tab-cpu" class="tab-panel">
+
+      <!-- Row 1 · power chart + sidebar -->
+      <div class="cn-row" style="grid-template-columns:1fr 160px">
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">CPU Power Draw · 12 h</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--cpu)"></span>W</span>
+              <span style="color:var(--faint)">TDP 120 W</span>
+            </div>
+          </div>
+          <div class="chart-wrap-tall"><canvas id="chart-cpu-power"></canvas></div>
+        </div>
+
+        <div class="stat-sidebar">
+          <span class="cn-cap">Instantané</span>
+          <div>
+            <div class="sb-label">Power</div>
+            <div class="sb-val" id="cpu-power-val">—</div>
+          </div>
+          <div>
+            <div class="sb-label">Température</div>
+            <div class="sb-val" id="cpu-temp-val">—</div>
+          </div>
+          <div>
+            <div class="sb-label">Clock</div>
+            <div class="sb-val" id="cpu-clock-val">—</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Row 2 · temp + clock -->
+      <div class="cn-row" style="grid-template-columns:1fr 1fr">
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Température · 12 h</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--cpu)"></span>°C</span>
+              <span style="color:var(--faint)">T<sub>jMax</sub> 89 °C</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-cpu-temp"></canvas></div>
+        </div>
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Fréquence effective · 12 h</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--dim)"></span>MHz</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-cpu-clock"></canvas></div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ── GPU ──────────────────────────────────────────────────────────── -->
+    <div id="tab-gpu" class="tab-panel">
+
+      <div class="gpu-warn" id="gpu-estimated-warn" style="display:none">
+        ⚠ RX 9070 XT — LHM ne supporte pas encore cette carte. La puissance GPU affichée est une estimation approximative.
+      </div>
+
+      <!-- Row 1 · power chart + sidebar -->
+      <div class="cn-row" style="grid-template-columns:1fr 160px">
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">GPU Power Draw · 12 h</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--gpu)"></span>W</span>
+              <span style="color:var(--faint)">TDP 304 W</span>
+            </div>
+          </div>
+          <div class="chart-wrap-tall"><canvas id="chart-gpu-power"></canvas></div>
+        </div>
+
+        <div class="stat-sidebar">
+          <span class="cn-cap">Instantané</span>
+          <div>
+            <div class="sb-label">Power</div>
+            <div class="sb-val" id="gpu-power-val">—</div>
+          </div>
+          <div>
+            <div class="sb-label">Température</div>
+            <div class="sb-val" id="gpu-temp-val">—</div>
+          </div>
+          <div>
+            <div class="sb-label">Clock</div>
+            <div class="sb-val" id="gpu-clock-val">—</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Row 2 · temp + clock -->
+      <div class="cn-row" style="grid-template-columns:1fr 1fr">
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Température · 12 h</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--gpu)"></span>°C</span>
+              <span style="color:var(--faint)">T<sub>jMax</sub> 110 °C</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-gpu-temp"></canvas></div>
+        </div>
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Clock · 12 h</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--dim)"></span>MHz</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-gpu-clock"></canvas></div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ── RAILS ────────────────────────────────────────────────────────── -->
+    <div id="tab-rails" class="tab-panel">
+
+      <!-- Row 1 · 12V -->
+      <div class="cn-row" style="grid-template-columns:1fr">
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Rail +12 V · tolérance ATX ±5 %</span>
+            <div class="cn-chart-legend">
+              <span style="color:var(--faint)">11.4 V – 12.6 V</span>
+            </div>
+          </div>
+          <div class="chart-wrap-tall"><canvas id="chart-12v"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Row 2 · 5V + 3.3V -->
+      <div class="cn-row" style="grid-template-columns:1fr 1fr">
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Rail +5 V · tolérance ATX ±5 %</span>
+            <div class="cn-chart-legend">
+              <span style="color:var(--faint)">4.75 V – 5.25 V</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-5v"></canvas></div>
+        </div>
+
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Rail +3.3 V · tolérance ATX ±5 %</span>
+            <div class="cn-chart-legend">
+              <span style="color:var(--faint)">3.14 V – 3.47 V</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-3v3"></canvas></div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ── ÉNERGIE ──────────────────────────────────────────────────────── -->
+    <div id="tab-energy" class="tab-panel">
+
+      <div class="gpu-warn" id="energy-no-influx" style="display:none">
+        ⚠ InfluxDB non connecté — les graphiques historiques nécessitent InfluxDB. Lance <code>setup-influx.ps1</code> si ce n'est pas encore fait, puis vérifie que la tâche <em>PC-Monitor-InfluxDB</em> tourne dans le Task Scheduler.
+      </div>
+
+      <!-- Row 1 · stat cells -->
+      <div class="cn-row" style="grid-template-columns:1fr 1fr 1fr">
+
+        <div class="cn-cell">
+          <span class="cn-cap">Coût aujourd'hui</span>
+          <div style="margin-top:8px">
+            <span class="cn-big" id="energy-cost-today">—</span>
+          </div>
+          <div class="cn-sub">Cumulé depuis minuit</div>
+        </div>
+
+        <div class="cn-cell">
+          <span class="cn-cap">Projection mensuelle</span>
+          <div style="margin-top:8px">
+            <span class="cn-big" id="energy-proj-month">—</span>
+          </div>
+          <div class="cn-sub">Moy glissante 7 jours</div>
+        </div>
+
+        <div class="cn-cell">
+          <span class="cn-cap">Coût / heure live</span>
+          <div style="margin-top:8px">
+            <span class="cn-big" id="ov-cost-h2">—</span>
+          </div>
+          <div class="cn-sub">Basé sur la conso actuelle</div>
+        </div>
+
+      </div>
+
+      <!-- Row 2 · 24h bar -->
+      <div class="cn-row" style="grid-template-columns:1fr">
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Consommation par heure · 24 h (kWh)</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--cpu)"></span>CPU</span>
+              <span><span class="swatch" style="background:var(--gpu)"></span>GPU</span>
+              <span style="color:var(--faint)"><span class="swatch" style="background:var(--faint)"></span>Reste</span>
+            </div>
+          </div>
+          <div class="chart-wrap-tall"><canvas id="chart-energy-24h"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Row 3 · 7d bar -->
+      <div class="cn-row" style="grid-template-columns:1fr">
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
+          <div class="cn-chart-head">
+            <span class="cn-cap">Consommation journalière · 7 jours (kWh)</span>
+            <div class="cn-chart-legend">
+              <span><span class="swatch" style="background:var(--ok)"></span>kWh / jour</span>
+            </div>
+          </div>
+          <div class="chart-wrap-tall"><canvas id="chart-7d"></canvas></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── ANOMALIES ─────────────────────────────────────────────────────── -->
+    <div id="tab-anomalies" class="tab-panel">
+
+      <!-- Row 1 · live -->
+      <div class="cn-row" style="grid-template-columns:1fr">
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:0">
+          <span class="cn-cap" style="margin-bottom:10px">Anomalies live · session en cours</span>
+          <div style="overflow-x:auto">
+            <table class="log-table">
+              <thead>
+                <tr>
+                  <th>Heure</th><th>Sévérité</th><th>Composant</th><th>Message</th><th>Valeur</th>
+                </tr>
+              </thead>
+              <tbody id="anomaly-tbody">
+                <tr><td colspan="5" style="padding:16px;text-align:center;color:var(--faint)">En attente de données…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2 · history -->
+      <div class="cn-row" style="grid-template-columns:1fr">
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:0">
+          <span class="cn-cap" style="margin-bottom:10px">Historique · 30 derniers jours (InfluxDB)</span>
+          <div style="overflow-x:auto">
+            <table class="log-table">
+              <thead>
+                <tr><th>Timestamp</th><th>Sévérité</th><th>Type</th></tr>
+              </thead>
+              <tbody id="anomaly-history-tbody">
+                <tr><td colspan="3" style="padding:16px;text-align:center;color:var(--faint)">Chargement…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- Settings modal -->
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <span>Paramètres</span>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <div class="setting-group">
+          <label class="setting-label" for="input-tarif">Tarif électricité (€/kWh)</label>
+          <div class="setting-hint">Tarif EDF réglementé 2024 : 0.2516 — Tarif bleu base exemple : 0.2276</div>
+          <div class="setting-row">
+            <input class="setting-input" id="input-tarif" type="number" step="0.0001" min="0.01" max="2" placeholder="0.2516" />
+            <span class="setting-unit">€/kWh</span>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <div class="setting-label">Périphériques</div>
+          <div class="setting-hint">Écrans, ampli, etc. — ajoutés au Wall Power affiché.</div>
+          <div id="devices-list"></div>
+          <button class="btn-add-device" id="btn-add-device">+ Ajouter un périphérique</button>
+          <div class="setting-preview" id="devices-total" style="margin-top:8px">Total périphériques : 0 W</div>
+        </div>
+
+        <div class="setting-group">
+          <div class="setting-label">Aperçu coût total</div>
+          <div class="setting-preview" id="settings-preview">—</div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="modal-cancel">Annuler</button>
+        <button class="btn-primary"   id="modal-save">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Statusbar -->
+  <div class="statusbar">
+    <span>PC Monitor v1.0</span>
+    <span>·</span>
+    <span>ws://localhost:8088</span>
+    <span>·</span>
+    <span>InfluxDB :8086</span>
+  </div>
+
+</div><!-- /app -->
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

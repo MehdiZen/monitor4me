@@ -1,0 +1,24 @@
+{
+  "name": "pc-monitor-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "build:app": "powershell -NoProfile -Command \"Stop-Process -Name 'pc-monitor-app' -Force -ErrorAction SilentlyContinue; Start-Sleep 1\" && tauri build --no-bundle && powershell -NoProfile -Command \"$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut(\\\"$env:USERPROFILE\\\\Desktop\\\\PC Monitor.lnk\\\"); $sc.TargetPath = (Resolve-Path 'src-tauri/target/release/pc-monitor-app.exe').Path; $sc.WorkingDirectory = (Resolve-Path 'src-tauri/target/release').Path; $sc.Save(); Write-Host 'Raccourci bureau mis a jour.'\""
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "chart.js": "^4.4.3",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^3.6.0"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@tauri-apps/cli": "^2.0.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.3.0"
+  }
+}
