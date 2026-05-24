@@ -1,0 +1,24 @@
+{
+  "name": "pc-monitor-collector",
+  "version": "1.0.0",
+  "description": "PC power monitoring collector — polls LHM, writes to InfluxDB, detects anomalies",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@influxdata/influxdb-client": "^1.33.2",
+    "node-notifier": "^10.0.1",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/node-notifier": "^8.0.5",
+    "@types/ws": "^8.5.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
