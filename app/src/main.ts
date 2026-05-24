@@ -1,0 +1,389 @@
+import { invoke } from "@tauri-apps/api/core"
+import { store } from "./store"
+import { startWS, onMessage, sendConfig } from "./ws-client"
+import { getTodayCost, getMonthlyProjection, get24hHourly, get7dDaily, getAnomalyHistory, getLast3DaysCost } from "./influx"
+import {
+  makeCpuPowerChart, makeCpuTempChart, makeCpuClockChart,
+  makeGpuPowerChart, makeGpuTempChart, makeGpuClockChart,
+  makeRailChart, makeEnergyBarChart, make7dChart,
+  makeOverviewPowerChart, makeOverviewTempChart,
+  updateLineChart, updateRailChart, updateEnergyBarChart, update7dChart,
+  updateOverviewTempChart,
+} from "./charts"
+import type { Chart } from "chart.js"
+import type { WSMessage } from "./types"
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+
+function el<T extends HTMLElement>(id: string): T {
+  return document.getElementById(id) as T
+}
+
+function set(id: string, val: string): void {
+  const e = el(id)
+  if (e) e.textContent = val
+}
+
+function severity(s: string): string {
+  if (s === "CRITICAL") return "crit"
+  if (s === "WARNING") return "warn"
+  return "info"
+}
+
+// ── Tab navigation ────────────────────────────────────────────────────────────
+
+function setupTabs(): void {
+  const tabs = document.querySelectorAll<HTMLElement>(".tab-btn")
+  const panels = document.querySelectorAll<HTMLElement>(".tab-panel")
+
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      tabs.forEach(t => t.classList.remove("active"))
+      panels.forEach(p => p.classList.remove("active"))
+      tab.classList.add("active")
+      const target = tab.dataset.tab!
+      document.getElementById(`tab-${target}`)?.classList.add("active")
+    })
+  })
+}
+
+// ── Live stat updates ─────────────────────────────────────────────────────────
+
+function updateOverview(msg: WSMessage): void {
+  const { sensors, metrics } = msg
+  const periphW  = totalPeriphWatts()
+  const totalW   = metrics.wallWatts + periphW
+  const tarif    = loadSavedTarif()
+  const costH    = (totalW / 1000) * tarif
+  const wallLabel = periphW > 0 ? `${totalW.toFixed(1)} W` : `${metrics.wallWatts.toFixed(1)} W`
+  set("ov-wall", wallLabel)
+  set("ov-cost-h",  `€${costH.toFixed(4)}`)
+  set("ov-cost-day", `€${(costH * 24).toFixed(2)}`)
+  set("ov-cost-h2",  `€${costH.toFixed(4)}/h`)
+  set("ov-cpu", `${sensors.cpuPowerW.toFixed(1)} W`)
+  set("ov-cpu-temp", `${sensors.cpuTempC.toFixed(0)}°C`)
+  set("ov-gpu", `${sensors.gpuPowerW.toFixed(1)} W${sensors.gpuPowerEstimated ? " *" : ""}`)
+  set("ov-gpu-temp", `${sensors.gpuTempC.toFixed(0)}°C`)
+  set("ov-nvme-temp", `${sensors.nvmeTempC.toFixed(0)}°C`)
+  set("ov-rail12",  sensors.rail12V  > 0.5 ? `${sensors.rail12V.toFixed(3)} V`  : "N/A")
+  set("ov-rail5",   sensors.rail5V   > 0.5 ? `${sensors.rail5V.toFixed(3)} V`   : "N/A")
+  set("ov-rail3v3", sensors.rail3v3  > 0.5 ? `${sensors.rail3v3.toFixed(3)} V`  : "N/A")
+
+  const topAnomaly = msg.anomalies[0]
+  const statusEl = el("ov-status")
+  if (topAnomaly) {
+    statusEl.className = `status-badge ${severity(topAnomaly.severity)}`
+    statusEl.textContent = `${topAnomaly.severity} — ${topAnomaly.component}`
+  } else {
+    statusEl.className = "status-badge ok"
+    statusEl.textContent = "✓ OK"
+  }
+
+  set("last-update", new Date().toLocaleTimeString("fr-FR"))
+}
+
+function updateCpuStats(msg: WSMessage): void {
+  const { sensors } = msg
+  set("cpu-power-val", `${sensors.cpuPowerW.toFixed(1)} W`)
+  set("cpu-temp-val", `${sensors.cpuTempC.toFixed(0)} °C`)
+  set("cpu-clock-val", `${sensors.cpuClockMhz.toFixed(0)} MHz`)
+}
+
+function updateGpuStats(msg: WSMessage): void {
+  const { sensors } = msg
+  set("gpu-power-val", `${sensors.gpuPowerW.toFixed(1)} W${sensors.gpuPowerEstimated ? " *" : ""}`)
+  set("gpu-temp-val", `${sensors.gpuTempC.toFixed(0)} °C`)
+  set("gpu-clock-val", `${sensors.gpuClockMhz.toFixed(0)} MHz`)
+  const warning = el("gpu-estimated-warn")
+  if (warning) warning.style.display = sensors.gpuPowerEstimated ? "block" : "none"
+}
+
+function updateAnomalyTable(): void {
+  const tbody = el<HTMLTableSectionElement>("anomaly-tbody")
+  if (!tbody) return
+  tbody.innerHTML = store.anomalyLog.slice(0, 100).map(a => `
+    <tr>
+      <td class="mono">${new Date(a.ts).toLocaleTimeString("fr-FR")}</td>
+      <td><span class="badge ${severity(a.severity)}">${a.severity}</span></td>
+      <td>${a.component}</td>
+      <td>${a.message}</td>
+      <td class="mono">${a.measuredValue.toFixed(2)}</td>
+    </tr>
+  `).join("")
+}
+
+// ── Chart instances ───────────────────────────────────────────────────────────
+
+let cpuPowerChart: Chart, cpuTempChart: Chart, cpuClockChart: Chart
+let gpuPowerChart: Chart, gpuTempChart: Chart, gpuClockChart: Chart
+let rail12vChart: Chart, rail5vChart: Chart, rail3v3Chart: Chart
+let energyBarChart: Chart, sevenDayChart: Chart
+let ovPowerChart: Chart, ovTempChart: Chart
+
+function initCharts(): void {
+  cpuPowerChart = makeCpuPowerChart(el<HTMLCanvasElement>("chart-cpu-power"))
+  cpuTempChart = makeCpuTempChart(el<HTMLCanvasElement>("chart-cpu-temp"))
+  cpuClockChart = makeCpuClockChart(el<HTMLCanvasElement>("chart-cpu-clock"))
+  gpuPowerChart = makeGpuPowerChart(el<HTMLCanvasElement>("chart-gpu-power"))
+  gpuTempChart = makeGpuTempChart(el<HTMLCanvasElement>("chart-gpu-temp"))
+  gpuClockChart = makeGpuClockChart(el<HTMLCanvasElement>("chart-gpu-clock"))
+  rail12vChart = makeRailChart(el<HTMLCanvasElement>("chart-12v"), "12V Rail", "#f0e040", 11.0, 13.0, 11.4, 12.6)
+  rail5vChart = makeRailChart(el<HTMLCanvasElement>("chart-5v"), "5V Rail", "#3fb950", 4.5, 5.5, 4.75, 5.25)
+  rail3v3Chart = makeRailChart(el<HTMLCanvasElement>("chart-3v3"), "3.3V Rail", "#58a6ff", 2.8, 3.8, 3.14, 3.47)
+  energyBarChart = makeEnergyBarChart(el<HTMLCanvasElement>("chart-energy-24h"))
+  sevenDayChart = make7dChart(el<HTMLCanvasElement>("chart-7d"))
+  ovPowerChart = makeOverviewPowerChart(el<HTMLCanvasElement>("chart-ov-power"))
+  ovTempChart  = makeOverviewTempChart(el<HTMLCanvasElement>("chart-ov-temp"))
+}
+
+// Reduce to max N points for rendering (keeps performance + avoids overflow)
+function downsample(buf: typeof store.buffer, maxPts = 600) {
+  if (buf.length <= maxPts) return buf
+  const step = Math.ceil(buf.length / maxPts)
+  return buf.filter((_, i) => i % step === 0)
+}
+
+function updateCharts(): void {
+  const buf = store.buffer
+  if (buf.length === 0) return
+  const s = downsample(buf)
+  updateLineChart(cpuPowerChart, s, "cpuPowerW")
+  updateLineChart(cpuTempChart, s, "cpuTempC")
+  updateLineChart(cpuClockChart, s, "cpuClockMhz")
+  updateLineChart(gpuPowerChart, s, "gpuPowerW")
+  updateLineChart(gpuTempChart, s, "gpuTempC")
+  updateLineChart(gpuClockChart, s, "gpuClockMhz")
+  updateRailChart(rail12vChart, s, "rail12V", 11.4, 12.6)
+  updateRailChart(rail5vChart, s, "rail5V", 4.75, 5.25)
+  updateRailChart(rail3v3Chart, s, "rail3v3", 3.14, 3.47)
+  updateLineChart(ovPowerChart, s, "wallWatts")
+  updateOverviewTempChart(ovTempChart, s)
+}
+
+// ── 3-day cost table ─────────────────────────────────────────────────────────
+
+function updateCost3dTable(days: { date: string; cost: number }[], todayCost: number): void {
+  const tbody = el<HTMLTableSectionElement>("cost-3d-tbody")
+  if (!tbody) return
+
+  const tarif = loadSavedTarif()
+  const todayLabel = new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })
+
+  // Merge InfluxDB days with live today cost
+  const rows = days.map(d => ({ ...d, isToday: false }))
+  const todayInRows = rows.find(r => r.date === todayLabel)
+  if (todayInRows) {
+    todayInRows.cost = todayCost
+    todayInRows.isToday = true
+  } else {
+    rows.push({ date: todayLabel, cost: todayCost, isToday: true })
+  }
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" class="c-muted" style="text-align:center;padding:10px;">Pas encore de données</td></tr>`
+    return
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const kwh = tarif > 0 ? (r.cost / tarif).toFixed(3) : "—"
+    const cls = r.isToday ? " class=\"today-row\"" : ""
+    const dayLabel = r.isToday ? `${r.date} <span style="opacity:.5;font-size:11px;">(en cours)</span>` : r.date
+    return `<tr${cls}><td>${dayLabel}</td><td>€${r.cost.toFixed(3)}</td><td>${kwh} kWh</td></tr>`
+  }).join("")
+}
+
+// ── Historical data refresh (every 60s) ──────────────────────────────────────
+
+async function refreshHistorical(): Promise<void> {
+  try {
+    const [todayCost, monthlyProj, hourly, daily, days3] = await Promise.all([
+      getTodayCost(),
+      getMonthlyProjection(),
+      get24hHourly(),
+      get7dDaily(),
+      getLast3DaysCost(),
+    ])
+    const noInflux = el("energy-no-influx")
+    if (noInflux) noInflux.style.display = "none"
+    set("ov-cost-today", `€${todayCost.toFixed(3)}`)
+    set("energy-cost-today", `€${todayCost.toFixed(3)}`)
+    set("energy-proj-month", `~€${monthlyProj.toFixed(2)}`)
+    updateEnergyBarChart(energyBarChart, hourly)
+    update7dChart(sevenDayChart, daily)
+    updateCost3dTable(days3, todayCost)
+  } catch (err) {
+    console.warn("[InfluxDB] historical refresh failed:", err)
+    const noInflux = el("energy-no-influx")
+    if (noInflux) noInflux.style.display = "block"
+  }
+
+  try {
+    const history = await getAnomalyHistory()
+    const tbody = el<HTMLTableSectionElement>("anomaly-history-tbody")
+    if (tbody) {
+      tbody.innerHTML = history.map(a => `
+        <tr>
+          <td class="mono">${a.ts.toLocaleString("fr-FR")}</td>
+          <td><span class="badge ${severity(a.severity)}">${a.severity}</span></td>
+          <td>${a.type}</td>
+        </tr>
+      `).join("")
+    }
+  } catch { /* ignore */ }
+}
+
+// ── Settings — tarif & périphériques ─────────────────────────────────────────
+
+const TARIF_KEY   = "pc-monitor-tarif-kwh"
+const DEVICES_KEY = "pc-monitor-devices"
+const DEFAULT_TARIF = 0.2516
+
+interface PeriphDevice { id: string; name: string; watts: number }
+
+function loadSavedTarif(): number {
+  return parseFloat(localStorage.getItem(TARIF_KEY) ?? String(DEFAULT_TARIF)) || DEFAULT_TARIF
+}
+
+function loadDevices(): PeriphDevice[] {
+  try { return JSON.parse(localStorage.getItem(DEVICES_KEY) ?? "[]") } catch { return [] }
+}
+
+function totalPeriphWatts(): number {
+  return loadDevices().reduce((s, d) => s + (d.watts || 0), 0)
+}
+
+// ── Device list renderer ──────────────────────────────────────────────────────
+
+let draftDevices: PeriphDevice[] = []
+
+function renderDeviceList(): void {
+  const list = el("devices-list")
+  const totalEl = el("devices-total")
+  if (!list) return
+
+  list.innerHTML = draftDevices.map((d, i) => `
+    <div class="device-row" data-idx="${i}">
+      <input class="device-name" type="text"   value="${d.name.replace(/"/g, '&quot;')}" placeholder="Nom" data-field="name" data-idx="${i}" />
+      <input class="device-watts" type="number" value="${d.watts}" min="0" max="2000" placeholder="0" data-field="watts" data-idx="${i}" />
+      <span class="device-unit">W</span>
+      <button class="device-remove" data-idx="${i}" title="Supprimer">×</button>
+    </div>
+  `).join("")
+
+  list.querySelectorAll<HTMLInputElement>(".device-name, .device-watts").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const idx = parseInt(inp.dataset.idx!)
+      if (inp.dataset.field === "name")  draftDevices[idx].name  = inp.value
+      if (inp.dataset.field === "watts") draftDevices[idx].watts = parseFloat(inp.value) || 0
+      updateDeviceTotal()
+      refreshPreview()
+    })
+  })
+
+  list.querySelectorAll<HTMLButtonElement>(".device-remove").forEach(btn => {
+    btn.addEventListener("click", () => {
+      draftDevices.splice(parseInt(btn.dataset.idx!), 1)
+      renderDeviceList()
+      refreshPreview()
+    })
+  })
+
+  updateDeviceTotal()
+}
+
+function updateDeviceTotal(): void {
+  const total = draftDevices.reduce((s, d) => s + (d.watts || 0), 0)
+  const t = el("devices-total")
+  if (t) t.textContent = `Total périphériques : ${total} W`
+}
+
+// ── Settings modal ────────────────────────────────────────────────────────────
+
+function refreshPreview(): void {
+  const preview = el("settings-preview")
+  if (!preview) return
+  const tarif  = parseFloat(el<HTMLInputElement>("input-tarif")?.value ?? "") || loadSavedTarif()
+  const pcW    = store.latest?.metrics.wallWatts ?? 0
+  const periphW = draftDevices.reduce((s, d) => s + (d.watts || 0), 0)
+  const totalW = pcW + periphW
+  if (pcW === 0) { preview.textContent = `Tarif : €${tarif.toFixed(4)}/kWh — en attente de données`; return }
+  const costH   = (totalW / 1000) * tarif
+  const costDay = costH * 24
+  preview.textContent = `PC ${pcW.toFixed(0)} W + périph ${periphW} W = ${totalW.toFixed(0)} W → €${costH.toFixed(4)}/h · €${costDay.toFixed(2)}/j`
+}
+
+function setupSettings(): void {
+  const backdrop = el("modal-backdrop")
+  const input    = el<HTMLInputElement>("input-tarif")
+
+  function open(): void {
+    draftDevices = loadDevices().map(d => ({ ...d }))
+    input.value  = String(loadSavedTarif())
+    renderDeviceList()
+    refreshPreview()
+    backdrop.classList.add("open")
+  }
+
+  function close(): void {
+    backdrop.classList.remove("open")
+  }
+
+  el("btn-settings")?.addEventListener("click", open)
+  el("modal-close")?.addEventListener("click", close)
+  el("modal-cancel")?.addEventListener("click", close)
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close() })
+
+  input.addEventListener("input", refreshPreview)
+
+  el("btn-add-device")?.addEventListener("click", () => {
+    draftDevices.push({ id: String(Date.now()), name: "", watts: 0 })
+    renderDeviceList()
+    refreshPreview()
+    // focus le dernier champ nom ajouté
+    const inputs = el("devices-list").querySelectorAll<HTMLInputElement>(".device-name")
+    inputs[inputs.length - 1]?.focus()
+  })
+
+  el("modal-save")?.addEventListener("click", () => {
+    const v = parseFloat(input.value)
+    if (isNaN(v) || v <= 0) { input.style.borderColor = "var(--red)"; return }
+    input.style.borderColor = ""
+    localStorage.setItem(TARIF_KEY, String(v))
+    localStorage.setItem(DEVICES_KEY, JSON.stringify(draftDevices.filter(d => d.watts > 0 || d.name)))
+    sendConfig(v)
+    close()
+  })
+}
+
+// ── Window controls (Tauri) ───────────────────────────────────────────────────
+
+function setupWindowControls(): void {
+  el("btn-min")?.addEventListener("click",   () => invoke("minimize_win"))
+  el("btn-max")?.addEventListener("click",   () => invoke("maximize_win"))
+  el("btn-close")?.addEventListener("click", () => invoke("hide_win"))
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+
+async function boot(): Promise<void> {
+  setupTabs()
+  initCharts()
+  setupSettings()
+  setupWindowControls()
+  sendConfig(loadSavedTarif())
+  startWS()
+
+  onMessage((msg) => {
+    updateOverview(msg)
+    updateCpuStats(msg)
+    updateGpuStats(msg)
+    updateCharts()
+    updateAnomalyTable()
+  })
+
+  // Historical data: immediately + every 60s
+  refreshHistorical()
+  setInterval(refreshHistorical, 60_000)
+}
+
+boot()

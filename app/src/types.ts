@@ -1,0 +1,59 @@
+export interface LHMSensors {
+  cpuPowerW: number
+  cpuTempC: number
+  cpuClockMhz: number
+  gpuPowerW: number
+  gpuTempC: number
+  gpuClockMhz: number
+  nvmePowerW: number | null
+  nvmeTempC: number
+  rail12V: number
+  rail5V: number
+  rail3v3: number
+  gpuPowerEstimated: boolean
+}
+
+export interface ComputedMetrics {
+  ramPowerW: number
+  moboPowerW: number
+  nvmePowerW: number
+  totalDcW: number
+  wallWatts: number
+  costPerHour: number
+}
+
+export type Severity = "INFO" | "WARNING" | "CRITICAL"
+
+export interface Anomaly {
+  type: string
+  severity: Severity
+  component: string
+  measuredValue: number
+  threshold: number
+  message: string
+}
+
+export interface WSMessage {
+  ts: number
+  sensors: LHMSensors
+  metrics: ComputedMetrics
+  anomalies: Anomaly[]
+}
+
+export interface DataPoint {
+  ts: number
+  wallWatts: number
+  cpuPowerW: number
+  cpuTempC: number
+  cpuClockMhz: number
+  gpuPowerW: number
+  gpuTempC: number
+  gpuClockMhz: number
+  rail12V: number
+  rail5V: number
+  rail3v3: number
+}
+
+export interface AnomalyRecord extends Anomaly {
+  ts: number
+}

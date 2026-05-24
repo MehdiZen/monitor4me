@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+app/src-tauri/target/
+
+# Runtime config (may contain local paths / tokens)
+collector/user-config.json
+
+# Tauri build artifacts
+app/src-tauri/gen/
+
+# Env & secrets
+.env
+.env.*
+*.secret
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Claude Code dev config
+.claude/
