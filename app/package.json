@@ -7,6 +7,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:release": "tauri build",
     "build:app": "powershell -NoProfile -Command \"Stop-Process -Name 'pc-monitor-app' -Force -ErrorAction SilentlyContinue; Start-Sleep 1\" && tauri build --no-bundle && powershell -NoProfile -Command \"$ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut(\\\"$env:USERPROFILE\\\\Desktop\\\\PC Monitor.lnk\\\"); $sc.TargetPath = (Resolve-Path 'src-tauri/target/release/pc-monitor-app.exe').Path; $sc.WorkingDirectory = (Resolve-Path 'src-tauri/target/release').Path; $sc.Save(); Write-Host 'Raccourci bureau mis a jour.'\""
   },
   "dependencies": {
