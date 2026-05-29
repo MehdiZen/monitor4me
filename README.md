@@ -1,101 +1,108 @@
 # monitor4me
 
-Real-time PC hardware monitoring dashboard — power draw, temperatures, voltages, fan speeds, and electricity costs with full historical tracking.
+Dashboard de monitoring hardware PC — température, consommation électrique, coûts, historique.
 
-Built with **Tauri 2** + **TypeScript** + **InfluxDB**.
+Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 
 ---
 
-## Features
+## Installation (utilisateurs)
 
-- **Live sensors** — CPU/GPU power & temperature, clocks, NVMe, PSU voltage rails (+12V / +5V / +3.3V), fan RPMs
-- **Electricity costs** — live €/h, today's total, 31-day history with daily breakdown
-- **Peripheral cost tracking** — monitors auto-detected via WMI, per-device wattage config; costs written to InfluxDB alongside PC data so history is immutable and accurate
-- **Anomaly detection** — z-score alerts for thermal throttling, GPU clock drops, rail instability
-- **Historical charts** — 24h hourly kWh, 7-day bar chart, full 31-day cost table (PC cost + total cost columns)
+**1.** Télécharger [`monitor4me-install.bat`](https://github.com/MehdiZen/monitor4me/releases/latest/download/monitor4me-install.bat) depuis la [dernière release](https://github.com/MehdiZen/monitor4me/releases/latest)
+
+**2.** Double-cliquer sur le fichier
+
+> **⚠️ Windows affichera un avertissement de sécurité** — c'est normal pour tout fichier téléchargé depuis internet.
+> Cliquer sur **Exécuter quand même** (ou "Run" si Windows est en anglais).
+> Le code source de l'installeur est consultable ici : [`install.ps1`](install.ps1)
+
+**3.** L'installeur prend en charge tout le reste : Node.js, InfluxDB, LibreHardwareMonitor, l'app et le collector qui démarre automatiquement au boot.
+
+---
+
+## Fonctionnalités
+
+- **Capteurs en temps réel** — CPU/GPU température · puissance · clocks · NVMe · rails PSU (+12V/+5V/+3.3V) · RPM ventilateurs
+- **Coût électrique** — €/h en direct · total du jour · historique 31 jours avec détail quotidien
+- **Suivi périphériques** — écrans auto-détectés via WMI, consommation par écran configurable
+- **Détection d'anomalies** — alertes z-score pour throttling thermique, chutes de clock GPU, instabilité rails
+- **Graphiques historiques** — kWh horaire 24h · barres 7 jours · tableau complet 31 jours
+
+---
 
 ## Stack
 
 | | |
 |---|---|
-| Desktop app | Tauri 2 · TypeScript · Vite |
-| Charts | Chart.js |
-| Collector | Node.js · TypeScript |
-| Sensor source | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) REST API |
-| Storage | InfluxDB 2 · Flux |
-| Monitor detection | WMI via PowerShell (`Get-PnpDevice`) |
+| App bureau | Tauri 2 · TypeScript · Vite |
+| Graphiques | Chart.js |
+| Collecteur | Node.js · TypeScript |
+| Capteurs | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) REST API |
+| Stockage | InfluxDB 2 · Flux |
+| Détection écrans | WMI via PowerShell (`Get-PnpDevice`) |
 
-## Prerequisites
+---
+
+## Développement (depuis le repo)
+
+### Prérequis
 
 - Windows 10/11
-- [Node.js](https://nodejs.org) 20+
-- [Rust](https://rustup.rs) (Tauri build only)
-- **LibreHardwareMonitor** running with web server enabled on `:8085`
-- **InfluxDB 2** running locally on `:8086`
+- Node.js 20+
+- Rust (build Tauri uniquement)
+- LibreHardwareMonitor avec web server activé sur `:8085`
+- InfluxDB 2 sur `:8086`
 
-## Setup
-
-**1. InfluxDB** — create org `home`, bucket `pc-monitor`, and an API token, then expose it:
+### Setup
 
 ```powershell
-[System.Environment]::SetEnvironmentVariable("INFLUX_TOKEN", "your-token", "User")
+# Depuis la racine du repo
+.\scripts\setup-from-source.ps1
 ```
 
-**2. Collector**
+### Build de production (signé)
 
-```bash
-cd collector
-npm install && npm run build
-npm start
-```
-
-Polls LHM every 2s · writes metrics to InfluxDB · broadcasts live data on WebSocket `:8088`.
-
-**3. App**
-
-```bash
+```powershell
 cd app
-npm install
-npm run build:app
+.\build-signed.ps1
+# Puis pour générer latest.json (auto-updater) :
+cd ..
+.\scripts\generate-latest-json.ps1 -Version "X.Y.Z" -Notes "Description"
 ```
 
-Binary: `app/src-tauri/target/release/pc-monitor-app.exe` — a desktop shortcut is created automatically.
+La clé privée de signature doit être à `$env:USERPROFILE\.monitor4me-signing-key` (hors repo).
 
-## Configuration
+---
 
-Click ⚙ in the app to set:
-
-- **Electricity tariff** (€/kWh) — synced live to the collector
-- **Detected monitors** — auto-listed from WMI, set wattage per screen
-- **Other peripherals** — amp, NAS, etc.
-
-## Project Structure
+## Structure
 
 ```
 monitor4me/
-├── app/                    Tauri desktop app
+├── app/                    App Tauri (bureau)
 │   ├── src/
-│   │   ├── main.ts         UI logic & chart updates
-│   │   ├── influx.ts       InfluxDB Flux queries
-│   │   ├── ws-client.ts    WebSocket client
-│   │   └── charts.ts       Chart.js configuration
-│   └── src-tauri/          Rust layer (window controls, tray icon, token bridge)
-└── collector/              Node.js data collector
-    └── src/
-        ├── index.ts        Main poll loop
-        ├── lhm.ts          LHM sensor parsing
-        ├── metrics.ts      Power & cost calculations
-        ├── anomaly.ts      Anomaly detection (z-score)
-        ├── monitors.ts     WMI monitor detection
-        ├── influx.ts       InfluxDB writes
-        └── ws.ts           WebSocket broadcast
+│   │   ├── main.ts         Logique UI + graphiques
+│   │   ├── influx.ts       Requêtes Flux vers InfluxDB
+│   │   └── styles.css
+│   └── src-tauri/          Couche Rust (fenêtre, tray, updater)
+├── collector/              Collecteur Node.js
+│   └── src/
+│       ├── index.ts        Boucle principale (toutes les 5s)
+│       ├── lhm.ts          Parsing capteurs LHM
+│       ├── anomaly.ts      Détection anomalies (z-score)
+│       ├── notify.ts       Notifications Windows
+│       └── monitors.ts     Détection écrans WMI
+├── scripts/                Scripts setup/build/release
+├── install.ps1             Installeur autonome (utilisateurs finaux)
+└── uninstall.ps1           Désinstalleur complet
 ```
 
-## Notes
+---
 
-- **RX 9070 XT**: LHM GPU power support is limited — collector marks readings `gpu_power_estimated=true` when falling back to an estimate.
-- **RAM power**: No AM5 sensor available, fixed 10W estimate.
-- **CPU RAPL**: Underestimates ~7%, corrected by `CPU_RAPL_CORRECTION = 1.07` in `config.ts`.
+## Notes hardware
+
+- **RX 9070 XT** : support LHM GPU limité — le collecteur marque `gpu_power_estimated=true` en mode estimation.
+- **RAM** : pas de capteur AM5 disponible, estimation fixe 10W.
+- **CPU RAPL** : sous-estime ~7%, corrigé par `CPU_RAPL_CORRECTION = 1.07`.
 
 ---
 
