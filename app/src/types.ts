@@ -4,12 +4,19 @@ export interface LHMSensors {
   cpuClockMhz: number
   gpuPowerW: number
   gpuTempC: number
+  gpuHotspotTempC: number
+  gpuMemTempC: number
+  gpuFanRpm: number
+  gpuFanPct: number
   gpuClockMhz: number
   nvmePowerW: number | null
   nvmeTempC: number
   rail12V: number
   rail5V: number
   rail3v3: number
+  fan1Rpm: number
+  fan2Rpm: number
+  fan5Rpm: number
   gpuPowerEstimated: boolean
 }
 
@@ -33,11 +40,18 @@ export interface Anomaly {
   message: string
 }
 
+export interface MonitorInfo {
+  id: string
+  name: string
+  active: boolean
+}
+
 export interface WSMessage {
   ts: number
   sensors: LHMSensors
   metrics: ComputedMetrics
   anomalies: Anomaly[]
+  monitors: MonitorInfo[]
 }
 
 export interface DataPoint {

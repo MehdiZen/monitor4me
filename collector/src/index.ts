@@ -5,6 +5,9 @@ import { detectAnomalies } from "./anomaly"
 import { writeMetrics, closeInflux } from "./influx"
 import { notifyAnomalies } from "./notify"
 import { startWSServer, broadcastMetrics, closeWSServer } from "./ws"
+import { detectMonitors, getCachedMonitors } from "./monitors"
+
+const MONITOR_POLL_MS = 5 * 60 * 1000 // 5 minutes
 
 let running = true
 
@@ -32,7 +35,7 @@ async function tick(): Promise<void> {
 
   for (const a of anomalies) console.warn(`  [${a.severity}] ${a.message}`)
 
-  broadcastMetrics({ ts: Date.now(), sensors, metrics, anomalies })
+  broadcastMetrics({ ts: Date.now(), sensors, metrics, anomalies, monitors: getCachedMonitors() })
 
   try {
     await writeMetrics(sensors, metrics, anomalies)
@@ -51,6 +54,10 @@ async function main(): Promise<void> {
   console.log(`  Host tag: ${CONFIG.INFLUX_HOST_TAG}`)
 
   startWSServer()
+
+  // Initial monitor detection + refresh every 5 min
+  detectMonitors().then(m => console.log(`  Monitors detected: ${m.map(x => x.name).join(", ") || "none"}`))
+  setInterval(() => detectMonitors(), MONITOR_POLL_MS)
 
   const shutdown = async () => {
     running = false

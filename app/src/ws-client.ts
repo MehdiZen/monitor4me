@@ -5,6 +5,7 @@ const WS_URL = "ws://localhost:8088"
 let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let pendingConfig: number | null = null
+let pendingPeriphWatts: number | null = null
 
 type Listener = (msg: WSMessage) => void
 const listeners: Listener[] = []
@@ -20,12 +21,17 @@ function connect(): void {
     store.connected = true
     updateStatus(true)
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-    if (pendingConfig !== null) ws!.send(JSON.stringify({ type: "config", tarifKwh: pendingConfig }))
+    if (pendingConfig !== null) {
+      const msg: Record<string, unknown> = { type: "config", tarifKwh: pendingConfig }
+      if (pendingPeriphWatts !== null) msg.periphWatts = pendingPeriphWatts
+      ws!.send(JSON.stringify(msg))
+    }
   })
 
   ws.addEventListener("message", (event) => {
     try {
-      const msg: WSMessage = JSON.parse(event.data as string)
+      const raw = JSON.parse(event.data as string)
+      const msg: WSMessage = { monitors: [], ...raw } // fallback if collector is older build
       store.push(msg)
       for (const fn of listeners) fn(msg)
     } catch { /* ignore malformed frames */ }
@@ -58,10 +64,13 @@ function updateStatus(connected: boolean): void {
   text.textContent = connected ? "Connected" : "Reconnecting…"
 }
 
-export function sendConfig(tarifKwh: number): void {
+export function sendConfig(tarifKwh: number, periphWatts?: number): void {
   pendingConfig = tarifKwh
+  if (periphWatts !== undefined) pendingPeriphWatts = periphWatts
   if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: "config", tarifKwh }))
+    const msg: Record<string, unknown> = { type: "config", tarifKwh }
+    if (periphWatts !== undefined) msg.periphWatts = periphWatts
+    ws.send(JSON.stringify(msg))
   }
 }
 
