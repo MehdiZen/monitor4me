@@ -21,10 +21,10 @@ function connect(): void {
     store.connected = true
     updateStatus(true)
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
-    if (pendingConfig !== null) {
-      const msg: Record<string, unknown> = { type: "config", tarifKwh: pendingConfig }
-      if (pendingPeriphWatts !== null) msg.periphWatts = pendingPeriphWatts
-      ws!.send(JSON.stringify(msg))
+    if (pendingFullConfig !== null) {
+      ws!.send(JSON.stringify({ type: "config", ...pendingFullConfig }))
+    } else if (pendingConfig !== null) {
+      ws!.send(JSON.stringify({ type: "config", tarifKwh: pendingConfig }))
     }
   })
 
@@ -64,13 +64,24 @@ function updateStatus(connected: boolean): void {
   text.textContent = connected ? "Connected" : "Reconnecting…"
 }
 
-export function sendConfig(tarifKwh: number, periphWatts?: number): void {
-  pendingConfig = tarifKwh
-  if (periphWatts !== undefined) pendingPeriphWatts = periphWatts
+export interface CollectorConfig {
+  tarifKwh: number
+  periphWatts?: number
+  cpuTdpW?: number
+  gpuTdpW?: number
+  cpuThrottleTempC?: number
+  gpuTempCriticalC?: number
+  nvmeTempCriticalC?: number
+}
+
+let pendingFullConfig: CollectorConfig | null = null
+
+export function sendConfig(cfg: CollectorConfig): void {
+  pendingConfig       = cfg.tarifKwh
+  pendingPeriphWatts  = cfg.periphWatts ?? pendingPeriphWatts
+  pendingFullConfig   = cfg
   if (ws?.readyState === WebSocket.OPEN) {
-    const msg: Record<string, unknown> = { type: "config", tarifKwh }
-    if (periphWatts !== undefined) msg.periphWatts = periphWatts
-    ws.send(JSON.stringify(msg))
+    ws.send(JSON.stringify({ type: "config", ...cfg }))
   }
 }
 
