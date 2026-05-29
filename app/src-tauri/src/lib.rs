@@ -50,7 +50,7 @@ async fn run_silent_install(
     tarif_kwh: f64,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    // 1. Resolve script path dynamically (supports dev and release modes)
+    // 1. Localiser silent-install.ps1 (mode dev ou release)
     let mut script_path = std::env::current_dir()
         .unwrap_or_default()
         .join("scripts")
@@ -58,13 +58,12 @@ async fn run_silent_install(
 
     if !script_path.exists() {
         if let Ok(res_dir) = app.path().resource_dir() {
-            let paths = vec![
+            let candidates = vec![
                 res_dir.join("silent-install.ps1"),
-                res_dir.join("_up_").join("_up_").join("scripts").join("silent-install.ps1"),
                 res_dir.join("scripts").join("silent-install.ps1"),
                 res_dir.join("resources").join("silent-install.ps1"),
             ];
-            for p in paths {
+            for p in candidates {
                 if p.exists() {
                     script_path = p;
                     break;
@@ -74,47 +73,57 @@ async fn run_silent_install(
     }
 
     if !script_path.exists() {
-        return Err("Impossible de localiser le script d'installation silent-install.ps1".to_string());
+        return Err("silent-install.ps1 introuvable".to_string());
     }
 
-    let script_str = script_path.to_string_lossy().into_owned();
+    // 2. Fichier de log temporaire pour IPC avec le processus eleve
+    let log_file = std::env::temp_dir().join("monitor4me-setup.log");
+    std::fs::write(&log_file, "").map_err(|e| e.to_string())?;
 
-    // 2. Spawn powershell process silently in background
+    let script_str = script_path.to_string_lossy().into_owned();
+    let log_str    = log_file.to_string_lossy().into_owned();
+
+    // 3. Lancer un PowerShell non-eleve qui demande l'elevation via Start-Process -Verb RunAs
+    //    Le processus eleve ecrit dans le fichier de log.
+    //    On n'utilise PAS CREATE_NO_WINDOW ici pour que la boite UAC soit visible.
+    let ps_cmd = format!(
+        "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait \
+         -ArgumentList @('-ExecutionPolicy','Bypass','-File','\"{}\"',\
+         '-AdminPass','\"{}\"','-TarifKwh','{}','-LogFile','\"{}\"')",
+        script_str.replace('\'', "''"),
+        admin_pass.replace('\'', "''"),
+        tarif_kwh,
+        log_str.replace('\'', "''")
+    );
+
     let mut child = Command::new("powershell")
         .creation_flags(CREATE_NO_WINDOW)
-        .args(&[
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            &script_str,
-            "-AdminPass",
-            &admin_pass,
-            "-TarifKwh",
-            &tarif_kwh.to_string(),
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .args(&["-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &ps_cmd])
         .spawn()
-        .map_err(|e| format!("Échec du lancement de l'installation : {}", e))?;
+        .map_err(|e| format!("Echec lancement : {}", e))?;
 
-    let stdout = child.stdout.take().ok_or("Impossible de capturer la sortie standard")?;
-    let reader = BufReader::new(stdout);
-
-    // 3. Read output line by line and emit events to frontend in real-time
-    let handle = app.clone();
+    // 4. Thread de polling : lit le fichier de log et emet les evenements en temps reel
+    let handle     = app.clone();
+    let log_path   = log_file.clone();
     std::thread::spawn(move || {
-        for line in reader.lines() {
-            if let Ok(l) = line {
-                let _ = handle.emit("setup-log", l);
+        let mut last_line = 0usize;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            if let Ok(content) = std::fs::read_to_string(&log_path) {
+                let lines: Vec<&str> = content.lines().collect();
+                for line in lines.iter().skip(last_line) {
+                    let _ = handle.emit("setup-log", line.to_string());
+                }
+                last_line = lines.len();
+                if content.contains("INSTALLATION_SUCCESS") {
+                    break;
+                }
             }
         }
     });
 
-    // 4. Wait for installation script completion
-    let status = child.wait().map_err(|e| format!("Attente du processus en échec : {}", e))?;
-    if !status.success() {
-        return Err("Le script d'installation silencieuse a retourné un code d'erreur.".to_string());
-    }
+    // 5. Attendre la fin du processus wrapper (qui attend lui-meme le processus eleve)
+    child.wait().map_err(|e| format!("Attente echouee : {}", e))?;
 
     Ok(())
 }

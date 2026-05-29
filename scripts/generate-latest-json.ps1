@@ -29,13 +29,13 @@ Write-Host "  Generation de latest.json pour v$Version..." -ForegroundColor Cyan
 
 # ── Cherche le .nsis.zip.sig (cree par createUpdaterArtifacts) ────────────────
 # Tauri v2 cree : monitor4me_X.Y.Z_x64-setup.nsis.zip + .nsis.zip.sig
-$sigFile = Get-ChildItem $BUNDLE -Filter "*.nsis.zip.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
-$zipFile = Get-ChildItem $BUNDLE -Filter "*.nsis.zip"     -ErrorAction SilentlyContinue | Select-Object -First 1
+$sigFile = Get-ChildItem $BUNDLE -Filter "*${Version}*.nsis.zip.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
+$zipFile = Get-ChildItem $BUNDLE -Filter "*${Version}*.nsis.zip"     -ErrorAction SilentlyContinue | Select-Object -First 1
 
 # Fallback : certaines versions Tauri signent le .exe directement
 if (-not $sigFile) {
-    $sigFile = Get-ChildItem $BUNDLE -Filter "*-setup.exe.sig" -ErrorAction SilentlyContinue | Select-Object -First 1
-    $zipFile = Get-ChildItem $BUNDLE -Filter "*-setup.exe"     -ErrorAction SilentlyContinue | Select-Object -First 1
+    $sigFile = Get-ChildItem $BUNDLE -Filter "*${Version}*-setup.exe.sig" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $zipFile = Get-ChildItem $BUNDLE -Filter "*${Version}*-setup.exe"     -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
 if (-not $sigFile) {
