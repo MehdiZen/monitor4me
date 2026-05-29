@@ -63,9 +63,9 @@ async fn run_silent_install(
                 res_dir.join("scripts").join("silent-install.ps1"),
                 res_dir.join("resources").join("silent-install.ps1"),
             ];
-            for p in candidates {
+            for p in &candidates {
                 if p.exists() {
-                    script_path = p;
+                    script_path = p.clone();
                     break;
                 }
             }
@@ -73,7 +73,12 @@ async fn run_silent_install(
     }
 
     if !script_path.exists() {
-        return Err("silent-install.ps1 introuvable".to_string());
+        // Inclure les chemins cherches pour faciliter le diagnostic
+        let cwd  = std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_default();
+        let rdir = app.path().resource_dir().map(|p| p.display().to_string()).unwrap_or_default();
+        return Err(format!(
+            "silent-install.ps1 introuvable (cwd={} resource_dir={})", cwd, rdir
+        ));
     }
 
     // 2. Fichier de log temporaire pour IPC avec le processus eleve
@@ -83,28 +88,52 @@ async fn run_silent_install(
     let script_str = script_path.to_string_lossy().into_owned();
     let log_str    = log_file.to_string_lossy().into_owned();
 
-    // 3. Lancer un PowerShell non-eleve qui demande l'elevation via Start-Process -Verb RunAs
-    //    Le processus eleve ecrit dans le fichier de log.
-    //    On n'utilise PAS CREATE_NO_WINDOW ici pour que la boite UAC soit visible.
-    let ps_cmd = format!(
-        "Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait \
-         -ArgumentList @('-ExecutionPolicy','Bypass','-File','\"{}\"',\
-         '-AdminPass','\"{}\"','-TarifKwh','{}','-LogFile','\"{}\"')",
+    // 3. Ecrire un launcher .ps1 sur disque pour eviter l'enfer du quoting inline.
+    //    Le launcher s'execute en tant qu'administrateur (eleve par le wrapper ci-dessous).
+    //    Il utilise l'operateur & pour appeler le script principal -- pas de -ArgumentList.
+    let launcher_content = format!(
+        "$ErrorActionPreference = 'SilentlyContinue'\r\n\
+         Add-Content -Path '{}' -Value 'STEP: Elevation obtenue, lancement du script' -Encoding UTF8\r\n\
+         & '{}' -AdminPass '{}' -TarifKwh {} -LogFile '{}'\r\n",
+        log_str.replace('\'', "''"),
         script_str.replace('\'', "''"),
         admin_pass.replace('\'', "''"),
         tarif_kwh,
-        log_str.replace('\'', "''")
+        log_str.replace('\'', "''"),
+    );
+
+    let launcher_path = std::env::temp_dir().join("monitor4me-launcher.ps1");
+    std::fs::write(&launcher_path, launcher_content.as_bytes())
+        .map_err(|e| format!("Echec creation launcher : {}", e))?;
+    let launcher_str = launcher_path.to_string_lossy().into_owned();
+
+    // 4. Le wrapper PowerShell (non-eleve) :
+    //    - ecrit dans le log AVANT de demander l'elevation (diagnostic)
+    //    - lance le launcher avec -Verb RunAs (UAC)
+    //    - capture l'erreur si l'elevation echoue et l'ecrit dans le log
+    let ps_cmd = format!(
+        "$log = '{log}'; \
+         Add-Content $log 'STEP: Demande elevation UAC' -Encoding UTF8; \
+         try {{ \
+           Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait \
+             -ArgumentList '-ExecutionPolicy Bypass -NonInteractive -File \"{launcher}\"'; \
+           Add-Content $log 'STEP: Wrapper termine' -Encoding UTF8 \
+         }} catch {{ \
+           Add-Content $log \"ERR: Elevation echouee - $_\" -Encoding UTF8 \
+         }}",
+        log     = log_str.replace('\'', "''"),
+        launcher = launcher_str.replace('"', "\"\""),
     );
 
     let mut child = Command::new("powershell")
         .creation_flags(CREATE_NO_WINDOW)
         .args(&["-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &ps_cmd])
         .spawn()
-        .map_err(|e| format!("Echec lancement : {}", e))?;
+        .map_err(|e| format!("Echec lancement wrapper : {}", e))?;
 
-    // 4. Thread de polling : lit le fichier de log et emet les evenements en temps reel
-    let handle     = app.clone();
-    let log_path   = log_file.clone();
+    // 5. Thread de polling : lit le log toutes les 400ms et emet les evenements
+    let handle   = app.clone();
+    let log_path = log_file.clone();
     std::thread::spawn(move || {
         let mut last_line = 0usize;
         loop {
@@ -115,14 +144,14 @@ async fn run_silent_install(
                     let _ = handle.emit("setup-log", line.to_string());
                 }
                 last_line = lines.len();
-                if content.contains("INSTALLATION_SUCCESS") {
+                if content.contains("INSTALLATION_SUCCESS") || content.contains("ERR:") {
                     break;
                 }
             }
         }
     });
 
-    // 5. Attendre la fin du processus wrapper (qui attend lui-meme le processus eleve)
+    // 6. Attendre la fin du wrapper (qui attend lui-meme le processus eleve)
     child.wait().map_err(|e| format!("Attente echouee : {}", e))?;
 
     Ok(())
