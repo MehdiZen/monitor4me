@@ -3,15 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PC Monitor — CODEC</title>
+  <title>monitor4me</title>
   <link rel="stylesheet" href="/src/styles.css" />
 </head>
 <body>
 <div class="app">
 
+  <!-- Bannière mise à jour (cachée par défaut) -->
+  <div id="update-banner" style="display:none">
+    <span id="update-msg">Une nouvelle version est disponible</span>
+    <button id="update-btn">Mettre à jour</button>
+    <button id="update-dismiss">✕</button>
+  </div>
+
   <!-- Titlebar -->
   <div class="titlebar" data-tauri-drag-region>
-    <span class="titlebar-title" data-tauri-drag-region>pc-monitor · codec</span>
+    <span class="titlebar-title" data-tauri-drag-region>monitor4me</span>
     <button class="settings-btn" id="btn-settings" title="Paramètres">⚙</button>
     <div class="live-indicator">
       <div class="status-dot" id="status-dot"></div>

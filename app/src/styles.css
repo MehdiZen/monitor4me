@@ -1,5 +1,39 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── Bannière mise à jour ─────────────────────────────────────────────────── */
+#update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  background: #0d2a1a;
+  border-bottom: 1px solid #1a5c36;
+  font-size: 12px;
+  color: #7fffb0;
+}
+#update-msg { flex: 1; }
+#update-btn {
+  padding: 3px 12px;
+  background: #1a8c48;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+#update-btn:hover { background: #22a85a; }
+#update-dismiss {
+  background: none;
+  border: none;
+  color: #7fffb0;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.6;
+  padding: 0 4px;
+}
+#update-dismiss:hover { opacity: 1; }
+
 :root {
   --bg:      #06090e;
   --bg2:     #0b1018;

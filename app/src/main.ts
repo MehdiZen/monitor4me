@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
 import { store } from "./store"
 import { startWS, onMessage, sendConfig, type CollectorConfig } from "./ws-client"
 import { getTodayCost, getMonthlyProjection, get24hHourly, get7dDaily, getAnomalyHistory, getLast3DaysCost, getLast31DaysCost, setInfluxHost } from "./influx"
@@ -12,6 +13,33 @@ import {
 } from "./charts"
 import type { Chart } from "chart.js"
 import type { WSMessage } from "./types"
+
+// ── Auto-update ───────────────────────────────────────────────────────────────
+
+listen<{ version: string; notes: string }>("update-available", ({ payload }) => {
+  const banner  = document.getElementById("update-banner")
+  const msg     = document.getElementById("update-msg")
+  const btn     = document.getElementById("update-btn")
+  const dismiss = document.getElementById("update-dismiss")
+  if (!banner || !msg || !btn || !dismiss) return
+
+  msg.textContent = `Nouvelle version disponible : v${payload.version}`
+  banner.style.display = "flex"
+
+  btn.onclick = async () => {
+    btn.textContent = "Téléchargement…"
+    btn.setAttribute("disabled", "true")
+    try {
+      await invoke("install_update")
+    } catch (e) {
+      btn.textContent = "Erreur — réessayer"
+      btn.removeAttribute("disabled")
+      console.error("Update failed:", e)
+    }
+  }
+
+  dismiss.onclick = () => { banner.style.display = "none" }
+})
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
