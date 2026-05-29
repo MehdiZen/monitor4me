@@ -12,7 +12,8 @@ export function notifyAnomalies(anomalies: Anomaly[]): void {
     const now = Date.now()
     const last = lastNotified.get(anomaly.type) ?? 0
 
-    if (anomaly.severity === "WARNING" && now - last < CONFIG.WARNING_DEBOUNCE_MS) continue
+    const debounceMs = anomaly.severity === "CRITICAL" ? 15_000 : CONFIG.WARNING_DEBOUNCE_MS
+    if (now - last < debounceMs) continue
 
     lastNotified.set(anomaly.type, now)
 

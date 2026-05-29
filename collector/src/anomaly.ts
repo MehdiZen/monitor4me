@@ -112,12 +112,15 @@ export function detectAnomalies(sensors: LHMSensors, wallWatts: number): Anomaly
     }
   }
 
-  // --- CPU power drop brutal (>30% in <5s, no load explanation) ---
+  // --- CPU power drop brutal (>30% in <5s, sans chute de fréquence) ---
+  // Si la fréquence chute aussi → transition idle normale (fin de jeu, rendu…), pas une anomalie.
+  // Si la puissance chute mais la fréquence reste haute → problème d'alim potentiel.
   if (cpuPowerHistory.length >= 2) {
     const oldest = cpuPowerHistory[0].w
     if (oldest > 20) {
       const drop = (oldest - sensors.cpuPowerW) / oldest
-      if (drop > CONFIG.CPU_POWER_DROP_THRESHOLD) {
+      const clockAlsoDropped = prevCpuClockMhz > 0 && sensors.cpuClockMhz < prevCpuClockMhz * 0.8
+      if (drop > CONFIG.CPU_POWER_DROP_THRESHOLD && !clockAlsoDropped) {
         anomalies.push({
           type: "cpu_power_drop",
           severity: "WARNING",

@@ -12,7 +12,8 @@ export interface UserConfig {
   nvmeTempCriticalC: number
 }
 
-const CONFIG_FILE = path.join(process.cwd(), "user-config.json")
+// __dirname pointe vers dist/ après compilation → ".." remonte au dossier collector/
+const CONFIG_FILE = path.join(__dirname, "..", "user-config.json")
 
 export const runtimeConfig: UserConfig = {
   tarifKwh:          CONFIG.TARIF_KWH,
