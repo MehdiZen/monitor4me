@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Installeur autonome de monitor4me.
   Un seul fichier a telecharger et executer — aucun clone de repo requis.
@@ -16,9 +16,7 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference    = "SilentlyContinue"   # Invoke-WebRequest sans barre de progression
 
 # ── Auto-elevation ────────────────────────────────────────────────────────────
-$isAdmin = ([Security.Principal.WindowsPrincipal]
-            [Security.Principal.WindowsIdentity]::GetCurrent()
-           ).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 
 if (-not $isAdmin) {
     Start-Process powershell `
