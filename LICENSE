@@ -1,0 +1,38 @@
+MONITOR4ME END USER LICENSE AGREEMENT (EULA)
+
+Copyright (c) 2026 Mehdi Zen
+
+This software is distributed under a dual-licensing model: Free for Non-Commercial Personal Use, and Paid for Commercial and Professional Use.
+
+By downloading, installing, or using this software, you agree to be bound by the terms of this License.
+
+1. NON-COMMERCIAL PERSONAL USE LICENSE
+--------------------------------------
+Permission is hereby granted, free of charge, to any individual or household to use, copy, and run this software solely for private, personal, and non-commercial purposes. 
+
+Under this personal license:
+* You may use the software on your personal home computer(s).
+* You may not use the software to generate income or facilitate any professional, educational (school/university administration), non-profit, or government activities.
+
+2. COMMERCIAL AND PROFESSIONAL LICENSE
+--------------------------------------
+Any use of this software within a commercial entity, professional environment, office, or for any business-related activities (including freelancing, remote work, or IT administration) requires a valid, paid Commercial License.
+
+* You must purchase a separate license key or enterprise plan for each device running the software in a professional context, or contact the author at git@github.com:MehdiZen/monitor4me.git for bulk licensing.
+* Using the software without a valid commercial license in a professional context constitutes a breach of copyright.
+
+3. RESTRICTIONS
+---------------
+Except as explicitly permitted under this license, you may not:
+* Sub-license, rent, lease, or resell the software.
+* Modify, reverse-engineer, decompile, or disassemble the binary executables of the desktop app, except to the extent permitted by applicable law.
+* Distribute modified versions of the software under the name "monitor4me" without explicit written consent from the author.
+
+4. OPEN SOURCE AND THIRD-PARTY COMPLIANCE
+-----------------------------------------
+This software integrates third-party open-source libraries, including LibreHardwareMonitor (licensed under GPL-3.0) and InfluxDB (licensed under MIT/Apache 2.0). 
+The source code of the monitor4me wrapper and integration client is shared publicly for community review and personal contributions under a "Source-Available" model. Any contributions submitted to the repository remain under the copyright of the author unless agreed otherwise.
+
+5. WARRANTY & LIABILITY
+-----------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

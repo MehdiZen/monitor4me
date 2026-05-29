@@ -859,3 +859,98 @@ html, body {
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
+
+/* ── Setup Wizard Overlay ─────────────────────────────────────────────────── */
+
+.setup-wizard {
+  position: fixed;
+  inset: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, rgba(56,130,200,0.065) 1px, transparent 1px);
+  background-size: 22px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.setup-card {
+  background: rgba(11, 16, 24, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 480px;
+  padding: 30px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(56,180,248,0.08);
+}
+
+.setup-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.setup-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  letter-spacing: -0.3px;
+}
+
+.setup-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.setup-step {
+  display: flex;
+  flex-direction: column;
+}
+
+.setup-icon {
+  font-size: 48px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.setup-icon.spin {
+  animation: setup-spin 2s linear infinite;
+}
+
+@keyframes setup-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.setup-step h2 {
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.setup-step p {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.setup-logs {
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.setup-logs .err {
+  color: var(--red);
+}
+
+.setup-logs .ok {
+  color: var(--green);
+}
+

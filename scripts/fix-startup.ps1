@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Supprime l'ancienne tache planifiee PC-Monitor-App et met a jour

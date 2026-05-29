@@ -541,9 +541,148 @@ function setupWindowControls(): void {
   el("btn-close")?.addEventListener("click", () => invoke("hide_win"))
 }
 
+// ── Setup Wizard ──────────────────────────────────────────────────────────────
+
+async function runSetupWizard(): Promise<void> {
+  const wizard = el("setup-wizard")
+  if (!wizard) return
+  wizard.style.display = "flex"
+
+  const step1 = el("setup-step-1")
+  const step2 = el("setup-step-2")
+  const step3 = el("setup-step-3")
+
+  const btnNext1 = el("btn-setup-next-1")
+  const btnNext2 = el("btn-setup-next-2")
+  const btnBack2 = el("btn-setup-back-2")
+  const btnFinish = el("btn-setup-finish")
+
+  const inputPass = el<HTMLInputElement>("setup-db-pass")
+  const inputTarif = el<HTMLInputElement>("setup-tarif")
+
+  const progressIcon = el("setup-progress-icon")
+  const progressTitle = el("setup-progress-title")
+  const progressSubtitle = el("setup-progress-subtitle")
+  const progressBar = el("setup-progress-bar")
+  const logsContainer = el("setup-logs")
+
+  let dbPass = "monitor4me-local"
+  let tarif = 0.2516
+
+  btnNext1?.addEventListener("click", () => {
+    dbPass = inputPass?.value || "monitor4me-local"
+    if (step1) step1.style.display = "none"
+    if (step2) step2.style.display = "flex"
+  })
+
+  btnBack2?.addEventListener("click", () => {
+    if (step2) step2.style.display = "none"
+    if (step1) step1.style.display = "flex"
+  })
+
+  btnNext2?.addEventListener("click", async () => {
+    tarif = parseFloat(inputTarif?.value || "0.2516") || 0.2516
+    if (step2) step2.style.display = "none"
+    if (step3) step3.style.display = "flex"
+
+    const unlisten = await listen<string>("setup-log", (event) => {
+      const line = event.payload
+      const div = document.createElement("div")
+
+      if (line.startsWith("STEP: ")) {
+        const stepName = line.substring(6)
+        if (progressTitle) progressTitle.textContent = stepName
+        if (progressSubtitle) progressSubtitle.textContent = "Configuration en cours..."
+        
+        if (progressBar) {
+          const currentWidth = parseFloat(progressBar.style.width) || 0
+          progressBar.style.width = Math.min(95, currentWidth + 12) + "%"
+        }
+        div.style.fontWeight = "bold"
+        div.style.color = "var(--accent)"
+        div.textContent = `➜ ${stepName}`
+      } else if (line.startsWith("OK: ")) {
+        div.className = "ok"
+        div.textContent = `✓ ${line.substring(4)}`
+      } else if (line.startsWith("ERR: ")) {
+        div.className = "err"
+        div.textContent = `✗ ${line.substring(5)}`
+        if (progressIcon) {
+          progressIcon.className = "setup-icon"
+          progressIcon.textContent = "❌"
+        }
+        if (progressTitle) progressTitle.textContent = "Échec de l'installation"
+        if (progressSubtitle) progressSubtitle.textContent = "Vérifiez les logs ci-dessous."
+      } else if (line.startsWith("WARN: ")) {
+        div.style.color = "var(--orange)"
+        div.textContent = `⚠ ${line.substring(6)}`
+      } else {
+        div.textContent = line
+      }
+
+      if (logsContainer) {
+        logsContainer.appendChild(div)
+        logsContainer.scrollTop = logsContainer.scrollHeight
+      }
+
+      if (line.includes("INSTALLATION_SUCCESS")) {
+        if (progressBar) progressBar.style.width = "100%"
+        if (progressIcon) {
+          progressIcon.className = "setup-icon"
+          progressIcon.textContent = "🎉"
+        }
+        if (progressTitle) progressTitle.textContent = "Installation terminée avec succès !"
+        if (progressSubtitle) progressSubtitle.textContent = "monitor4me est prêt à fonctionner."
+        if (btnFinish) btnFinish.style.display = "block"
+      }
+    })
+
+    try {
+      await invoke("run_silent_install", { adminPass: dbPass, tarifKwh: tarif })
+    } catch (err) {
+      const div = document.createElement("div")
+      div.className = "err"
+      div.textContent = `Erreur critique : ${err}`
+      if (logsContainer) {
+        logsContainer.appendChild(div)
+        logsContainer.scrollTop = logsContainer.scrollHeight
+      }
+      if (progressIcon) {
+        progressIcon.className = "setup-icon"
+        progressIcon.textContent = "❌"
+      }
+      if (progressTitle) progressTitle.textContent = "Échec de l'installation"
+      if (progressSubtitle) progressSubtitle.textContent = "Une erreur système est survenue."
+    }
+  })
+
+  btnFinish?.addEventListener("click", () => {
+    localStorage.setItem(TARIF_KEY, String(tarif))
+    localStorage.setItem("pc-monitor-setup-completed", "true")
+    if (wizard) wizard.style.display = "none"
+    window.location.reload()
+  })
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function boot(): Promise<void> {
+  const token = await invoke<string>("get_influx_token").catch(() => "")
+  
+  // Si un token d'accès existe déjà dans l'environnement (installation existante),
+  // on valide automatiquement l'étape de configuration pour ne pas déranger l'utilisateur.
+  if (token && token.trim() !== "") {
+    localStorage.setItem("pc-monitor-setup-completed", "true")
+  }
+
+  const setupCompleted = localStorage.getItem("pc-monitor-setup-completed") === "true"
+
+  if (!token || !setupCompleted) {
+    setupWindowControls()
+    await runSetupWizard()
+    return
+  }
+
   setupTabs()
   initCharts()
   setupSettings()

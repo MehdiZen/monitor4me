@@ -587,6 +587,62 @@
     <span>·</span>
     <span>InfluxDB :8086</span>
   </div>
+  
+  <!-- Setup Wizard Overlay (visible by default if first-run) -->
+  <div id="setup-wizard" class="setup-wizard" style="display:none">
+    <div class="setup-card">
+      <div class="setup-header">
+        <h1 class="setup-title">Configuration de monitor4me</h1>
+        <p class="setup-subtitle">Mettons en place votre système de suivi en 3 étapes simples et silencieuses.</p>
+      </div>
+      
+      <!-- Étape 1 : Mot de passe InfluxDB -->
+      <div class="setup-step" id="setup-step-1">
+        <div class="setup-icon">🔒</div>
+        <h2>Sécurisation de la base de données</h2>
+        <p>Choisissez un mot de passe administrateur pour l'instance locale d'InfluxDB 2.x.</p>
+        <div class="setting-group" style="margin-top:20px">
+          <input class="setting-input" id="setup-db-pass" type="password" value="monitor4me-local" style="width:100%; font-size:16px; box-sizing:border-box" placeholder="Mot de passe InfluxDB" />
+        </div>
+        <button class="btn-primary" id="btn-setup-next-1" style="width:100%; margin-top:20px; padding:12px; font-weight:700">Continuer</button>
+      </div>
+
+      <!-- Étape 2 : Tarif d'électricité -->
+      <div class="setup-step" id="setup-step-2" style="display:none">
+        <div class="setup-icon">⚡</div>
+        <h2>Tarif de l'électricité</h2>
+        <p>Entrez votre tarif de kWh pour calculer vos coûts réels (modifiable à tout moment).</p>
+        <div class="setting-group" style="margin-top:20px">
+          <div class="setting-row" style="display:flex; gap:8px">
+            <input class="setting-input" id="setup-tarif" type="number" step="0.0001" value="0.2516" style="flex:1; font-size:16px" />
+            <span class="setting-unit" style="font-size:14px; align-self:center">€/kWh</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:20px">
+          <button class="btn-secondary" id="btn-setup-back-2" style="flex:1; padding:12px; font-weight:600">Retour</button>
+          <button class="btn-primary" id="btn-setup-next-2" style="flex:2; padding:12px; font-weight:700">Lancer l'installation</button>
+        </div>
+      </div>
+
+      <!-- Étape 3 : Installation & Configuration asynchrone -->
+      <div class="setup-step" id="setup-step-3" style="display:none">
+        <div class="setup-icon spin" id="setup-progress-icon">⏳</div>
+        <h2 id="setup-progress-title">Installation en cours...</h2>
+        <p id="setup-progress-subtitle">Téléchargement et configuration des services locaux.</p>
+        
+        <div class="progress-container" style="margin-top:24px; background:var(--border2); height:6px; border-radius:3px; overflow:hidden">
+          <div class="progress-bar" id="setup-progress-bar" style="width:0%; height:100%; background:var(--accent); box-shadow:0 0 10px var(--accent); transition:width 0.4s ease"></div>
+        </div>
+        
+        <div class="setup-logs" id="setup-logs" style="margin-top:20px; background:#000; height:120px; border-radius:5px; padding:10px; font-family:var(--mono); font-size:10px; overflow-y:auto; color:var(--muted); border:1px solid var(--border); text-align:left; line-height:1.4">
+          <!-- Les logs s'affichent ici -->
+        </div>
+
+        <button class="btn-primary" id="btn-setup-finish" style="display:none; width:100%; margin-top:20px; padding:12px; background:var(--green); box-shadow:0 0 16px rgba(45,212,139,0.4); color:#06090e; font-weight:700">Lancer monitor4me !</button>
+      </div>
+
+    </div>
+  </div>
 
 </div><!-- /app -->
 
