@@ -184,8 +184,8 @@ export async function getLast31DaysCost(): Promise<{ date: string; costPc: numbe
     .map(row => {
       const costPc     = parseFloat(row.cost_per_hour ?? "0") || 0
       const costPeriph = parseFloat(row.periph_cost_per_hour ?? "0") || 0
-      // wall_watts sum * 2/3600 = kWh (same factor applied above)
-      const kwh = parseFloat(row.wall_watts ?? "0") || 0
+      // wall_watts sum * 2/3600 = Wh → /1000 pour kWh
+      const kwh = (parseFloat(row.wall_watts ?? "0") || 0) / 1000
       return { date: windowTimeToDayLabel(row._time), costPc, costPeriph, kwh }
     })
 }
