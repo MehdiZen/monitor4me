@@ -1,6 +1,6 @@
 {
   "productName": "monitor4me",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "dev.monitor4me.dashboard",
   "build": {
     "frontendDist": "../dist",
@@ -50,7 +50,7 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "../scripts/silent-install.ps1"
+      "../../scripts/silent-install.ps1"
     ],
     "windows": {
       "certificateThumbprint": null,
