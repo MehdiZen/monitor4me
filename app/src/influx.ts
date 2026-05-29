@@ -3,7 +3,11 @@ import { invoke } from "@tauri-apps/api/core"
 const INFLUX_URL = "http://localhost:8086"
 const ORG        = "home"
 const BUCKET     = "pc-monitor"
-const HOST       = "CODEC"
+let HOST         = ""
+
+export function setInfluxHost(host: string): void {
+  HOST = host
+}
 
 // Token fetched once from Tauri env (INFLUX_TOKEN user env var)
 const TOKEN_PROMISE: Promise<string> = invoke<string>("get_influx_token")

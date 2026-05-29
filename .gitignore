@@ -27,3 +27,6 @@ desktop.ini
 
 # Claude Code dev config
 .claude/
+
+# Dev notes
+TODO.md

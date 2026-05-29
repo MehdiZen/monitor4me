@@ -1,6 +1,8 @@
 import { CONFIG } from "./config"
 
 export interface LHMSensors {
+  cpuName: string
+  gpuName: string
   cpuPowerW: number
   cpuTempC: number
   cpuClockMhz: number
@@ -50,6 +52,15 @@ function parseValue(raw: string | undefined): number {
   return isNaN(num) ? 0 : num
 }
 
+// Find the depth-1 hardware node (direct child of root) that contains a sensor
+// matching the predicate — returns its display name (e.g. "AMD Ryzen 7 7800X3D")
+function findHardwareName(root: LHMNode, predicate: (n: LHMNode) => boolean): string {
+  for (const hwNode of root.Children ?? []) {
+    if (findSensors(hwNode, predicate).length > 0) return hwNode.Text
+  }
+  return ""
+}
+
 function findFirst(root: LHMNode, textIncludes: string, sensorType?: string): LHMNode | undefined {
   const lower = textIncludes.toLowerCase()
   return findSensors(root, (n) => {
@@ -97,10 +108,19 @@ export async function fetchLHMSensors(): Promise<LHMSensors> {
   const fan2Node = findSensors(root, n => n.Text === "Fan #2" && n.Type?.toLowerCase() === "fan" && n.Value !== undefined)[0]
   const fan5Node = findSensors(root, n => n.Text === "Fan #5" && n.Type?.toLowerCase() === "fan" && n.Value !== undefined)[0]
 
+  const cpuName = findHardwareName(root, n =>
+    n.Text.toLowerCase() === "package" && n.Type?.toLowerCase() === "power" && n.Value !== undefined
+  )
+  const gpuName = findHardwareName(root, n =>
+    n.Text.toLowerCase().includes("gpu core") && n.Type?.toLowerCase() === "temperature" && n.Value !== undefined
+  )
+
   const cpuRaw = parseValue(cpuPowerNode?.Value)
   const gpuPowerW = parseValue(gpuPowerNode?.Value)
 
   return {
+    cpuName,
+    gpuName,
     cpuPowerW: cpuRaw * CONFIG.CPU_RAPL_CORRECTION,
     cpuTempC: parseValue(cpuTempNode?.Value),
     cpuClockMhz: parseValue(cpuClockNode?.Value),

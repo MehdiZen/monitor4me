@@ -1,3 +1,5 @@
+import * as os from "os"
+
 export const CONFIG = {
   // LibreHardwareMonitor
   LHM_URL: "http://localhost:8085/data.json",
@@ -41,7 +43,7 @@ export const CONFIG = {
   INFLUX_TOKEN: process.env.INFLUX_TOKEN ?? "pc-monitor-token",
   INFLUX_ORG: "home",
   INFLUX_BUCKET: "pc-monitor",
-  INFLUX_HOST_TAG: "CODEC",
+  INFLUX_HOST_TAG: os.hostname(),
 
   // RAPL correction (CPU power tends to underestimate ~7%)
   CPU_RAPL_CORRECTION: 1.07,

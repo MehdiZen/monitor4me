@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core"
 import { store } from "./store"
-import { startWS, onMessage, sendConfig } from "./ws-client"
-import { getTodayCost, getMonthlyProjection, get24hHourly, get7dDaily, getAnomalyHistory, getLast3DaysCost, getLast31DaysCost } from "./influx"
+import { startWS, onMessage, sendConfig, type CollectorConfig } from "./ws-client"
+import { getTodayCost, getMonthlyProjection, get24hHourly, get7dDaily, getAnomalyHistory, getLast3DaysCost, getLast31DaysCost, setInfluxHost } from "./influx"
 import {
   makeCpuPowerChart, makeCpuTempChart, makeCpuClockChart,
   makeGpuPowerChart, makeGpuTempChart, makeGpuClockChart,
@@ -60,6 +60,8 @@ function updateOverview(msg: WSMessage): void {
   set("ov-cost-h",  `€${costH.toFixed(4)}`)
   set("ov-cost-day", `€${(costH * 24).toFixed(2)}`)
   set("ov-cost-h2",  `€${costH.toFixed(4)}/h`)
+  if (sensors.cpuName) set("ov-cpu-name", sensors.cpuName)
+  if (sensors.gpuName) set("ov-gpu-name", sensors.gpuName)
   set("ov-cpu", `${sensors.cpuPowerW.toFixed(1)} W`)
   set("ov-cpu-temp", `${sensors.cpuTempC.toFixed(0)}°C`)
   set("ov-gpu", `${sensors.gpuPowerW.toFixed(1)} W${sensors.gpuPowerEstimated ? " *" : ""}`)
@@ -286,7 +288,28 @@ async function refreshHistorical(): Promise<void> {
 const TARIF_KEY    = "pc-monitor-tarif-kwh"
 const DEVICES_KEY  = "pc-monitor-devices"
 const MONITORS_KEY = "pc-monitor-monitors"  // { [id]: watts }
+const HW_KEY       = "pc-monitor-hw-limits"
 const DEFAULT_TARIF = 0.2516
+
+interface HWLimits {
+  cpuTdpW: number
+  gpuTdpW: number
+  cpuThrottleTempC: number
+  gpuTempCriticalC: number
+  nvmeTempCriticalC: number
+}
+const DEFAULT_HW: HWLimits = {
+  cpuTdpW: 120, gpuTdpW: 220,
+  cpuThrottleTempC: 85, gpuTempCriticalC: 100, nvmeTempCriticalC: 70,
+}
+function loadHWLimits(): HWLimits {
+  try { return { ...DEFAULT_HW, ...JSON.parse(localStorage.getItem(HW_KEY) ?? "{}") } }
+  catch { return { ...DEFAULT_HW } }
+}
+function buildCollectorConfig(): CollectorConfig {
+  const hw = loadHWLimits()
+  return { tarifKwh: loadSavedTarif(), periphWatts: totalPeriphWatts(), ...hw }
+}
 
 interface PeriphDevice { id: string; name: string; watts: number }
 
@@ -429,6 +452,13 @@ function setupSettings(): void {
   function open(): void {
     draftDevices = loadDevices().map(d => ({ ...d }))
     input.value  = String(loadSavedTarif())
+    const hw = loadHWLimits()
+    const setVal = (id: string, v: number) => { const e = el<HTMLInputElement>(id); if (e) e.value = String(v) }
+    setVal("input-cpu-tdp",   hw.cpuTdpW)
+    setVal("input-gpu-tdp",   hw.gpuTdpW)
+    setVal("input-cpu-temp",  hw.cpuThrottleTempC)
+    setVal("input-gpu-temp",  hw.gpuTempCriticalC)
+    setVal("input-nvme-temp", hw.nvmeTempCriticalC)
     renderDeviceList()
     renderMonitorList()
     refreshPreview()
@@ -461,7 +491,16 @@ function setupSettings(): void {
     input.style.borderColor = ""
     localStorage.setItem(TARIF_KEY, String(v))
     localStorage.setItem(DEVICES_KEY, JSON.stringify(draftDevices.filter(d => d.watts > 0 || d.name)))
-    sendConfig(v, totalPeriphWatts())
+    // Save hardware limits
+    const hw: HWLimits = {
+      cpuTdpW:           parseFloat((el<HTMLInputElement>("input-cpu-tdp"))?.value)     || DEFAULT_HW.cpuTdpW,
+      gpuTdpW:           parseFloat((el<HTMLInputElement>("input-gpu-tdp"))?.value)     || DEFAULT_HW.gpuTdpW,
+      cpuThrottleTempC:  parseFloat((el<HTMLInputElement>("input-cpu-temp"))?.value)    || DEFAULT_HW.cpuThrottleTempC,
+      gpuTempCriticalC:  parseFloat((el<HTMLInputElement>("input-gpu-temp"))?.value)    || DEFAULT_HW.gpuTempCriticalC,
+      nvmeTempCriticalC: parseFloat((el<HTMLInputElement>("input-nvme-temp"))?.value)   || DEFAULT_HW.nvmeTempCriticalC,
+    }
+    localStorage.setItem(HW_KEY, JSON.stringify(hw))
+    sendConfig(buildCollectorConfig())
     close()
   })
 }
@@ -481,21 +520,27 @@ async function boot(): Promise<void> {
   initCharts()
   setupSettings()
   setupWindowControls()
-  sendConfig(loadSavedTarif(), totalPeriphWatts())
+  sendConfig(buildCollectorConfig())
   startWS()
 
   let lastPeriphW = -1
+  let hostSynced  = false
   onMessage((msg) => {
     updateOverview(msg)
     updateCpuStats(msg)
     updateGpuStats(msg)
     updateCharts()
     updateAnomalyTable()
+    // Sync InfluxDB host tag from collector on first message
+    if (!hostSynced && msg.config?.host) {
+      hostSynced = true
+      setInfluxHost(msg.config.host)
+    }
     // Re-sync periphWatts whenever the active monitor set changes
     const pw = totalPeriphWatts()
     if (pw !== lastPeriphW) {
       lastPeriphW = pw
-      sendConfig(loadSavedTarif(), pw)
+      sendConfig({ ...buildCollectorConfig(), periphWatts: pw })
     }
   })
 

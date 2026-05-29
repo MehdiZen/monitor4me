@@ -85,7 +85,7 @@
         <div class="cn-cell">
           <div style="display:flex;align-items:baseline;justify-content:space-between">
             <span class="cn-cap">CPU</span>
-            <span class="cn-name">Ryzen 7 7800X3D</span>
+            <span class="cn-name" id="ov-cpu-name">—</span>
           </div>
           <div style="margin-top:10px">
             <div class="cn-kv"><span class="cn-kv-k">Power</span><span class="cn-kv-v" id="ov-cpu">—</span></div>
@@ -99,7 +99,7 @@
         <div class="cn-cell">
           <div style="display:flex;align-items:baseline;justify-content:space-between">
             <span class="cn-cap">GPU</span>
-            <span class="cn-name">RX 9070 XT</span>
+            <span class="cn-name" id="ov-gpu-name">—</span>
           </div>
           <div style="margin-top:10px">
             <div class="cn-kv"><span class="cn-kv-k">Power</span><span class="cn-kv-v" id="ov-gpu">—</span></div>
@@ -530,6 +530,33 @@
           <div id="devices-list"></div>
           <button class="btn-add-device" id="btn-add-device">+ Ajouter un périphérique</button>
           <div class="setting-preview" id="devices-total" style="margin-top:8px">Total périphériques : 0 W</div>
+        </div>
+
+        <div class="setting-group">
+          <div class="setting-label">Limites matériel</div>
+          <div class="setting-hint">Utilisées pour la détection d'anomalies. Valeurs par défaut génériques.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">CPU TDP (W)</div>
+              <div class="setting-row"><input class="setting-input" id="input-cpu-tdp" type="number" min="10" max="500" placeholder="120" /><span class="setting-unit">W</span></div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">GPU TDP (W)</div>
+              <div class="setting-row"><input class="setting-input" id="input-gpu-tdp" type="number" min="10" max="600" placeholder="220" /><span class="setting-unit">W</span></div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">CPU temp max (°C)</div>
+              <div class="setting-row"><input class="setting-input" id="input-cpu-temp" type="number" min="60" max="110" placeholder="85" /><span class="setting-unit">°C</span></div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">GPU temp critique (°C)</div>
+              <div class="setting-row"><input class="setting-input" id="input-gpu-temp" type="number" min="60" max="120" placeholder="100" /><span class="setting-unit">°C</span></div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">NVMe temp critique (°C)</div>
+              <div class="setting-row"><input class="setting-input" id="input-nvme-temp" type="number" min="40" max="90" placeholder="70" /><span class="setting-unit">°C</span></div>
+            </div>
+          </div>
         </div>
 
         <div class="setting-group">

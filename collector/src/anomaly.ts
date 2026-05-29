@@ -1,4 +1,5 @@
 import { CONFIG } from "./config"
+import { runtimeConfig } from "./runtime-config"
 import { LHMSensors } from "./lhm"
 
 export type Severity = "INFO" | "WARNING" | "CRITICAL"
@@ -82,7 +83,7 @@ export function detectAnomalies(sensors: LHMSensors, wallWatts: number): Anomaly
   while (cpuPowerHistory.length > 0 && cpuPowerHistory[0].ts < cutoff) cpuPowerHistory.shift()
 
   // --- CPU thermal throttle ---
-  if (prevCpuClockMhz > 0 && sensors.cpuTempC > CONFIG.CPU_THROTTLE_TEMP_C) {
+  if (prevCpuClockMhz > 0 && sensors.cpuTempC > runtimeConfig.cpuThrottleTempC) {
     const freqDrop = (prevCpuClockMhz - sensors.cpuClockMhz) / prevCpuClockMhz
     if (freqDrop > CONFIG.CPU_THROTTLE_FREQ_DROP) {
       anomalies.push({
@@ -90,7 +91,7 @@ export function detectAnomalies(sensors: LHMSensors, wallWatts: number): Anomaly
         severity: "WARNING",
         component: "CPU",
         measuredValue: sensors.cpuTempC,
-        threshold: CONFIG.CPU_THROTTLE_TEMP_C,
+        threshold: runtimeConfig.cpuThrottleTempC,
         message: `CPU throttling: temp ${sensors.cpuTempC.toFixed(1)}°C, freq dropped ${(freqDrop * 100).toFixed(0)}%`,
       })
     }
@@ -130,21 +131,21 @@ export function detectAnomalies(sensors: LHMSensors, wallWatts: number): Anomaly
   }
 
   // --- GPU power > TDP ---
-  if (sensors.gpuPowerW > CONFIG.GPU_TDP_W * 1.1) {
+  if (sensors.gpuPowerW > runtimeConfig.gpuTdpW * 1.1) {
     anomalies.push({
       type: "gpu_power_over_tdp",
       severity: "WARNING",
       component: "GPU",
       measuredValue: sensors.gpuPowerW,
-      threshold: CONFIG.GPU_TDP_W * 1.1,
-      message: `GPU power ${sensors.gpuPowerW.toFixed(1)}W exceeds TDP+10% (${(CONFIG.GPU_TDP_W * 1.1).toFixed(0)}W)`,
+      threshold: runtimeConfig.gpuTdpW * 1.1,
+      message: `GPU power ${sensors.gpuPowerW.toFixed(1)}W exceeds TDP+10% (${(runtimeConfig.gpuTdpW * 1.1).toFixed(0)}W)`,
     })
   }
 
   // --- GPU clock drop ---
   if (prevGpuClockMhz > 100) {
     const gpuDrop = (prevGpuClockMhz - sensors.gpuClockMhz) / prevGpuClockMhz
-    if (gpuDrop > CONFIG.GPU_CLOCK_DROP && sensors.gpuTempC < CONFIG.GPU_TEMP_CRITICAL_C - 10) {
+    if (gpuDrop > CONFIG.GPU_CLOCK_DROP && sensors.gpuTempC < runtimeConfig.gpuTempCriticalC - 10) {
       anomalies.push({
         type: "gpu_clock_drop",
         severity: "WARNING",
@@ -157,13 +158,13 @@ export function detectAnomalies(sensors: LHMSensors, wallWatts: number): Anomaly
   }
 
   // --- GPU temp critique ---
-  if (sensors.gpuTempC >= CONFIG.GPU_TEMP_CRITICAL_C) {
+  if (sensors.gpuTempC >= runtimeConfig.gpuTempCriticalC) {
     anomalies.push({
       type: "gpu_temp_critical",
       severity: "CRITICAL",
       component: "GPU",
       measuredValue: sensors.gpuTempC,
-      threshold: CONFIG.GPU_TEMP_CRITICAL_C,
+      threshold: runtimeConfig.gpuTempCriticalC,
       message: `GPU temperature critical: ${sensors.gpuTempC.toFixed(1)}°C`,
     })
   }
@@ -195,13 +196,13 @@ export function detectAnomalies(sensors: LHMSensors, wallWatts: number): Anomaly
   }
 
   // --- NVMe temp critique ---
-  if (sensors.nvmeTempC > 0 && sensors.nvmeTempC >= CONFIG.NVME_TEMP_CRITICAL_C) {
+  if (sensors.nvmeTempC > 0 && sensors.nvmeTempC >= runtimeConfig.nvmeTempCriticalC) {
     anomalies.push({
       type: "nvme_temp_critical",
       severity: "WARNING",
       component: "NVMe",
       measuredValue: sensors.nvmeTempC,
-      threshold: CONFIG.NVME_TEMP_CRITICAL_C,
+      threshold: runtimeConfig.nvmeTempCriticalC,
       message: `NVMe temperature critical: ${sensors.nvmeTempC.toFixed(1)}°C`,
     })
   }

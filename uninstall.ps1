@@ -1,196 +1,224 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-  Desinstalle completement PC Monitor et ses dependances.
-
-.PARAMETER Full
-  Si specifie, desinstalle aussi Node.js, Rust et VS Build Tools.
-  ATTENTION : ces outils peuvent etre utilises par d'autres projets.
-
-.EXAMPLE
-  # Supprime l'app, les services, LHM, InfluxDB (garde Node/Rust/VSBuildTools)
-  powershell -ExecutionPolicy Bypass -File ".\uninstall.ps1"
-
-  # Supprime absolument tout
-  powershell -ExecutionPolicy Bypass -File ".\uninstall.ps1" -Full
+  Desinstalle monitor4me etape par etape avec confirmation.
+  Ne supprime PAS Node.js, InfluxDB (binaire) ou LHM (outils independants).
+.NOTES
+  Lancement :
+    powershell -ExecutionPolicy Bypass -File "uninstall.ps1"
 #>
 
-param(
-  [switch]$Full,
-  [switch]$Force   # pas de confirmation
-)
+Set-StrictMode -Off
+$ErrorActionPreference = "SilentlyContinue"
+$ROOT = $PSScriptRoot
 
-$ErrorActionPreference = "Continue"
-
-function Ask {
-  param([string]$Msg)
-  if ($Force) { return $true }
-  $r = Read-Host "$Msg [O/N]"
-  return $r -match "^[oOyY]"
+function Ask([string]$prompt, [bool]$defaultYes = $false) {
+    $hint = if ($defaultYes) { "(O/n)" } else { "(o/N)" }
+    $ans  = Read-Host "  └─ $prompt $hint"
+    if ([string]::IsNullOrWhiteSpace($ans)) { return $defaultYes }
+    return ($ans -match '^[oOyY]$')
 }
 
-function Remove-IfExists {
-  param([string]$Path, [string]$Label)
-  if (Test-Path $Path) {
-    Remove-Item $Path -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "  Supprime : $Label"
-  }
+function Write-Step([string]$title) {
+    Write-Host ""
+    Write-Host "  ┌─ $title" -ForegroundColor Cyan
 }
 
+function Write-OK  ([string]$m) { Write-Host "  |  OK  $m" -ForegroundColor Green   }
+function Write-Info([string]$m) { Write-Host "  |  ·   $m" -ForegroundColor Gray    }
+function Write-Skip([string]$m) { Write-Host "  |  --  $m" -ForegroundColor DarkGray }
+function Write-Warn([string]$m) { Write-Host "  |  /!\ $m" -ForegroundColor Yellow  }
+
+# ── Bienvenue ─────────────────────────────────────────────────────────────────
+
+Clear-Host
 Write-Host ""
-Write-Host "=== PC Monitor Uninstaller ===" -ForegroundColor Cyan
-if ($Full) {
-  Write-Host "  Mode FULL : Node.js, Rust, VS Build Tools seront aussi supprimes." -ForegroundColor Yellow
-}
+Write-Host "  ================================================" -ForegroundColor Yellow
+Write-Host "    monitor4me  --  Desinstallation               " -ForegroundColor Yellow
+Write-Host "  ================================================" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  Ce script supprime uniquement les elements propres a monitor4me."
+Write-Host "  Node.js, InfluxDB (binaire) et LHM ne seront PAS touches."
+Write-Host "  Chaque etape demandera ta confirmation."
 Write-Host ""
 
-if (-not $Force) {
-  Write-Host "Cette operation supprime :" -ForegroundColor Yellow
-  Write-Host "  - Les 3 taches planifiees (InfluxDB, LHM, Collector)"
-  Write-Host "  - L'entree autostart registre de l'app"
-  Write-Host "  - Le raccourci bureau"
-  Write-Host "  - Les dossiers C:\Tools\influxdb et C:\Tools\LibreHardwareMonitor"
-  Write-Host "  - Les donnees InfluxDB (%USERPROFILE%\.influxdbv2)"
-  Write-Host "  - Le dossier source C:\Dev\pc-monitor"
-  Write-Host "  - La variable d'environnement INFLUX_TOKEN"
-  if ($Full) {
-    Write-Host "  - Node.js, Rust + Cargo, VS Build Tools" -ForegroundColor Yellow
-  }
-  Write-Host ""
-  if (-not (Ask "Continuer")) {
-    Write-Host "Annule." -ForegroundColor Gray
+if (-not (Ask "Continuer ?" $false)) {
+    Write-Host "  Annule." -ForegroundColor Gray
     exit 0
-  }
 }
 
-# ── 1. Taches planifiees ──────────────────────────────────────────────────────
-Write-Host ""
-Write-Host "[1/8] Arret et suppression des taches planifiees..."
+# ── 1. Arret des processus ────────────────────────────────────────────────────
 
-foreach ($task in @("PC-Monitor-InfluxDB", "PC-Monitor-LHM", "PC-Monitor-Collector")) {
-  $t = Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue
-  if ($t) {
-    Stop-ScheduledTask  -TaskName $task -ErrorAction SilentlyContinue
-    Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Host "  Supprime : tache $task"
-  }
+Write-Step "Arret des processus monitor4me"
+
+$procs = @("influxd", "LibreHardwareMonitor", "node")
+$running = $procs | Where-Object { Get-Process -Name $_ -ErrorAction SilentlyContinue }
+
+if ($running.Count -gt 0) {
+    Write-Info "Processus actifs detectes : $($running -join ', ')"
+    if (Ask "Arreter ces processus maintenant ?") {
+        foreach ($p in $running) {
+            Stop-Process -Name $p -Force -ErrorAction SilentlyContinue
+            Write-OK "Arrete : $p"
+        }
+    } else {
+        Write-Skip "Processus conserves."
+    }
+} else {
+    Write-Skip "Aucun processus monitor4me actif."
 }
 
-# ── 2. Processus en cours ─────────────────────────────────────────────────────
-Write-Host ""
-Write-Host "[2/8] Arret des processus..."
+# ── 2. Taches planifiees ──────────────────────────────────────────────────────
 
-foreach ($proc in @("influxd", "LibreHardwareMonitor", "pc-monitor-app")) {
-  $p = Get-Process -Name $proc -ErrorAction SilentlyContinue
-  if ($p) {
-    Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue
-    Write-Host "  Arrete : $proc"
-  }
+Write-Step "Taches planifiees"
+
+$taskNames = @("PC-Monitor-Collector", "PC-Monitor-LHM", "PC-Monitor-InfluxDB")
+$existing  = $taskNames | Where-Object { Get-ScheduledTask -TaskName $_ -ErrorAction SilentlyContinue }
+
+if ($existing.Count -gt 0) {
+    Write-Info "Taches trouvees : $($existing -join ', ')"
+    if (Ask "Supprimer ces taches planifiees ?") {
+        foreach ($t in $existing) {
+            Stop-ScheduledTask       -TaskName $t -ErrorAction SilentlyContinue
+            Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue
+            Write-OK "Supprimee : $t"
+        }
+    } else {
+        Write-Skip "Taches conservees."
+    }
+} else {
+    Write-Skip "Aucune tache PC-Monitor-* trouvee."
 }
 
-# ── 3. Entree autostart registre ──────────────────────────────────────────────
-Write-Host ""
-Write-Host "[3/8] Suppression autostart registre..."
+# ── 3. Variable INFLUX_TOKEN ──────────────────────────────────────────────────
+
+Write-Step "Variable d'environnement INFLUX_TOKEN"
+
+$token = [System.Environment]::GetEnvironmentVariable("INFLUX_TOKEN", "User")
+if ($token) {
+    Write-Info "INFLUX_TOKEN presente (debut : $($token.Substring(0, [Math]::Min(16, $token.Length)))...)"
+    if (Ask "Supprimer INFLUX_TOKEN ?") {
+        [System.Environment]::SetEnvironmentVariable("INFLUX_TOKEN", $null, "User")
+        Write-OK "INFLUX_TOKEN supprimee"
+    } else {
+        Write-Skip "INFLUX_TOKEN conservee."
+    }
+} else {
+    Write-Skip "INFLUX_TOKEN non presente."
+}
+
+# ── 4. Raccourcis bureau ──────────────────────────────────────────────────────
+
+Write-Step "Raccourcis bureau"
+
+$desktop  = [System.Environment]::GetFolderPath("Desktop")
+$lnkPaths = @("$desktop\monitor4me.lnk", "$desktop\PC Monitor.lnk")
+$foundLnk = $lnkPaths | Where-Object { Test-Path $_ }
+
+if ($foundLnk.Count -gt 0) {
+    foreach ($l in $foundLnk) {
+        Write-Info "Trouve : $l"
+        if (Ask "Supprimer ce raccourci ?") {
+            Remove-Item $l -Force -ErrorAction SilentlyContinue
+            Write-OK "Supprime."
+        } else {
+            Write-Skip "Conserve."
+        }
+    }
+} else {
+    Write-Skip "Aucun raccourci monitor4me sur le bureau."
+}
+
+# ── 5. Autostart registre ─────────────────────────────────────────────────────
+
+Write-Step "Entree autostart registre (si presente)"
 
 $regKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-$regName = "pc-monitor-app"
-if (Get-ItemProperty -Path $regKey -Name $regName -ErrorAction SilentlyContinue) {
-  Remove-ItemProperty -Path $regKey -Name $regName -ErrorAction SilentlyContinue
-  Write-Host "  Supprime : HKCU\...\Run\$regName"
+foreach ($name in @("pc-monitor-app", "monitor4me")) {
+    if (Get-ItemProperty -Path $regKey -Name $name -ErrorAction SilentlyContinue) {
+        Write-Info "Entree registre trouvee : $name"
+        if (Ask "Supprimer l'entree autostart '$name' ?") {
+            Remove-ItemProperty -Path $regKey -Name $name -ErrorAction SilentlyContinue
+            Write-OK "Supprimee."
+        } else {
+            Write-Skip "Conservee."
+        }
+    }
 }
 
-# ── 4. Raccourci bureau ───────────────────────────────────────────────────────
-Write-Host ""
-Write-Host "[4/8] Suppression raccourci bureau..."
+# ── 6. Fichiers de build ──────────────────────────────────────────────────────
 
-$shortcut = "$env:USERPROFILE\Desktop\PC Monitor.lnk"
-Remove-IfExists $shortcut "raccourci bureau"
+Write-Step "Fichiers de build (regenerables)"
 
-# ── 5. Outils (LHM + InfluxDB) ───────────────────────────────────────────────
-Write-Host ""
-Write-Host "[5/8] Suppression des outils..."
+$buildDirs = @(
+    "$ROOT\collector\dist",
+    "$ROOT\collector\node_modules",
+    "$ROOT\app\dist",
+    "$ROOT\app\node_modules",
+    "$ROOT\app\src-tauri\target"
+)
+$presentBuilds = $buildDirs | Where-Object { Test-Path $_ }
 
-Remove-IfExists "C:\Tools\LibreHardwareMonitor" "C:\Tools\LibreHardwareMonitor"
-Remove-IfExists "C:\Tools\influxdb"             "C:\Tools\influxdb"
-
-# Supprime C:\Tools si vide
-if ((Test-Path "C:\Tools") -and (-not (Get-ChildItem "C:\Tools" -ErrorAction SilentlyContinue))) {
-  Remove-Item "C:\Tools" -Force -ErrorAction SilentlyContinue
-  Write-Host "  Supprime : C:\Tools (vide)"
+if ($presentBuilds.Count -gt 0) {
+    Write-Info "Ces dossiers peuvent etre regeneres avec npm run build."
+    $presentBuilds | ForEach-Object { Write-Info "  · $_" }
+    if (Ask "Supprimer les dossiers de build (dist/, node_modules/, target/) ?" $false) {
+        foreach ($d in $presentBuilds) {
+            Remove-Item $d -Recurse -Force -ErrorAction SilentlyContinue
+            Write-OK "Supprime : $d"
+        }
+    } else {
+        Write-Skip "Dossiers de build conserves."
+    }
+} else {
+    Write-Skip "Aucun dossier de build present."
 }
 
-# ── 6. Donnees InfluxDB ───────────────────────────────────────────────────────
-Write-Host ""
-Write-Host "[6/8] Suppression des donnees InfluxDB..."
+# ── 7. Configuration utilisateur ─────────────────────────────────────────────
+
+Write-Step "Configuration utilisateur"
+
+$userConfig = "$ROOT\collector\user-config.json"
+if (Test-Path $userConfig) {
+    Write-Info "user-config.json contient : tarif kWh, periph watts, seuils."
+    if (Ask "Supprimer user-config.json (perdu definitivement) ?" $false) {
+        Remove-Item $userConfig -Force -ErrorAction SilentlyContinue
+        Write-OK "Supprime."
+    } else {
+        Write-Skip "Conserve."
+    }
+} else {
+    Write-Skip "user-config.json absent."
+}
+
+# ── 8. Donnees InfluxDB ───────────────────────────────────────────────────────
+
+Write-Step "Donnees InfluxDB (metriques historiques)"
 
 $influxData = "$env:USERPROFILE\.influxdbv2"
 if (Test-Path $influxData) {
-  if ($Force -or (Ask "Supprimer les donnees InfluxDB ($influxData) ?")) {
-    Remove-IfExists $influxData "donnees InfluxDB (~/.influxdbv2)"
-  }
-}
-
-# Variable INFLUX_TOKEN
-[System.Environment]::SetEnvironmentVariable("INFLUX_TOKEN", $null, "User")
-Write-Host "  Supprime : variable env INFLUX_TOKEN"
-
-# ── 7. Source de l'app ────────────────────────────────────────────────────────
-Write-Host ""
-Write-Host "[7/8] Suppression du code source..."
-
-$appDir = "C:\Dev\pc-monitor"
-if (Test-Path $appDir) {
-  if ($Force -or (Ask "Supprimer le dossier source ($appDir) ?")) {
-    Remove-IfExists $appDir "C:\Dev\pc-monitor (source)"
-  }
-}
-
-# ── 8. Optionnel : Node.js, Rust, VS Build Tools ─────────────────────────────
-if ($Full) {
-  Write-Host ""
-  Write-Host "[8/8] Desinstallation Node.js / Rust / VS Build Tools..." -ForegroundColor Yellow
-  Write-Host "  ATTENTION : ces outils peuvent etre utilises par d'autres projets." -ForegroundColor Yellow
-
-  # Node.js
-  $node = Get-Package -Name "Node.js*" -ErrorAction SilentlyContinue
-  if ($node) {
-    if ($Force -or (Ask "Desinstaller Node.js ($($node.Version)) ?")) {
-      winget uninstall --id OpenJS.NodeJS --silent --accept-source-agreements 2>$null
-      Write-Host "  Desinstalle : Node.js"
+    Write-Warn "ATTENTION : cette action efface tout l'historique des metriques."
+    Write-Info "Dossier : $influxData"
+    if (Ask "Supprimer les donnees InfluxDB (IRREVERSIBLE) ?" $false) {
+        Remove-Item $influxData -Recurse -Force -ErrorAction SilentlyContinue
+        Write-OK "Donnees InfluxDB supprimees."
+    } else {
+        Write-Skip "Donnees InfluxDB conservees."
     }
-  }
-
-  # Rust / Cargo (rustup)
-  $rustup = Get-Command rustup -ErrorAction SilentlyContinue
-  if ($rustup) {
-    if ($Force -or (Ask "Desinstaller Rust + Cargo (rustup) ?")) {
-      & rustup self uninstall -y 2>$null
-      Write-Host "  Desinstalle : Rust + Cargo"
-    }
-  }
-
-  # VS Build Tools
-  $vs = Get-Package -Name "Microsoft Visual Studio*Build Tools*" -ErrorAction SilentlyContinue
-  if ($vs) {
-    if ($Force -or (Ask "Desinstaller VS Build Tools ? (long, ~4 GB liberes)")) {
-      winget uninstall --id Microsoft.VisualStudio.2022.BuildTools --silent --accept-source-agreements 2>$null
-      Write-Host "  Desinstalle : VS Build Tools 2022"
-    }
-  }
 } else {
-  Write-Host ""
-  Write-Host "[8/8] Node.js, Rust, VS Build Tools conserves (utiliser -Full pour les supprimer)."
+    Write-Skip "Dossier de donnees InfluxDB absent."
 }
 
 # ── Resume ────────────────────────────────────────────────────────────────────
+
 Write-Host ""
-Write-Host "Desinstallation terminee." -ForegroundColor Green
+Write-Host "  ================================================" -ForegroundColor Cyan
+Write-Host "  Desinstallation terminee." -ForegroundColor Green
+Write-Host "  ================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Reste sur le systeme (si conserves) :"
-if (-not $Full) {
-  Write-Host "  - Node.js  : C:\Program Files\nodejs\"
-  Write-Host "  - Rust     : %USERPROFILE%\.cargo\"
-  Write-Host "  - VS BT    : C:\Program Files (x86)\Microsoft Visual Studio\"
-}
-Write-Host "  - WebView2 : composant Windows, non supprime (partage avec Edge)"
+Write-Host "  Outils independants conserves (non touches) :"
+Write-Host "    - Node.js     Parametres Windows > Applications"
+Write-Host "    - InfluxDB    Parametres Windows > Applications"
+Write-Host "    - LHM         supprime son dossier manuellement"
+Write-Host "    - Rust        rustup self uninstall"
 Write-Host ""

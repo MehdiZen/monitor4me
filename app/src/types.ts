@@ -1,4 +1,6 @@
 export interface LHMSensors {
+  cpuName: string
+  gpuName: string
   cpuPowerW: number
   cpuTempC: number
   cpuClockMhz: number
@@ -52,6 +54,10 @@ export interface WSMessage {
   metrics: ComputedMetrics
   anomalies: Anomaly[]
   monitors: MonitorInfo[]
+  config?: {
+    tarifKwh: number
+    host: string
+  }
 }
 
 export interface DataPoint {
