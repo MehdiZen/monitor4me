@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Installeur autonome de monitor4me.
-  Un seul fichier a telecharger et executer — aucun clone de repo requis.
+  Un seul fichier a telecharger et executer - aucun clone de repo requis.
   Telecharge et installe automatiquement toutes les dependances.
 
 .NOTES
@@ -15,7 +15,7 @@ Set-StrictMode -Off
 $ErrorActionPreference = "Stop"
 $ProgressPreference    = "SilentlyContinue"   # Invoke-WebRequest sans barre de progression
 
-# ── Auto-elevation ────────────────────────────────────────────────────────────
+# -- Auto-elevation ------------------------------------------------------------
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 
 if (-not $isAdmin) {
@@ -25,7 +25,7 @@ if (-not $isAdmin) {
     exit
 }
 
-# ── Constantes ────────────────────────────────────────────────────────────────
+# -- Constantes ----------------------------------------------------------------
 $GITHUB_REPO   = "MehdiZen/monitor4me"
 $DEPS_DIR      = "$env:APPDATA\monitor4me"         # collector, config
 $COLLECTOR_DIR = "$DEPS_DIR\collector"
@@ -34,11 +34,11 @@ $LHM_DIR       = "$env:ProgramFiles\LibreHardwareMonitor"
 $INFLUX_URL    = "http://localhost:8086"
 $INFLUX_VER    = "2.7.11"
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# -- Helpers -------------------------------------------------------------------
 
 function Ask([string]$prompt, [bool]$defaultYes = $true) {
     $hint = if ($defaultYes) { "(O/n)" } else { "(o/N)" }
-    $ans  = Read-Host "`n  └─ $prompt $hint"
+    $ans  = Read-Host "`n  +- $prompt $hint"
     if ([string]::IsNullOrWhiteSpace($ans)) { return $defaultYes }
     return ($ans -match '^[oOyY]$')
 }
@@ -101,7 +101,7 @@ function Register-PCTask {
     OK "Tache '$Name' enregistree"
 }
 
-# ── Bienvenue ─────────────────────────────────────────────────────────────────
+# -- Bienvenue -----------------------------------------------------------------
 
 Clear-Host
 Write-Host ""
@@ -110,10 +110,10 @@ Write-Host "    monitor4me  --  Installation                  " -ForegroundColor
 Write-Host "  ================================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Ce script installe tout le necessaire pour monitor4me :"
-Write-Host "    · Node.js LTS           pour le collecteur de metriques"
-Write-Host "    · InfluxDB 2.x          base de donnees locale"
-Write-Host "    · LibreHardwareMonitor  lecture des capteurs materiel"
-Write-Host "    · monitor4me            l'application de monitoring"
+Write-Host "    - Node.js LTS           pour le collecteur de metriques"
+Write-Host "    - InfluxDB 2.x          base de donnees locale"
+Write-Host "    - LibreHardwareMonitor  lecture des capteurs materiel"
+Write-Host "    - monitor4me            l'application de monitoring"
 Write-Host ""
 Write-Host "  Chaque etape demande ta confirmation." -ForegroundColor Gray
 Write-Host "  Duree estimee : 5-10 minutes selon ta connexion." -ForegroundColor Gray
@@ -124,7 +124,7 @@ if (-not (Ask "Commencer l'installation ?")) {
     exit 0
 }
 
-# ── Step 1 : Node.js ──────────────────────────────────────────────────────────
+# -- Step 1 : Node.js ----------------------------------------------------------
 
 Step "1/8" "Node.js LTS"
 
@@ -150,7 +150,7 @@ if ($nodeOk) {
     }
 }
 
-# ── Step 2 : InfluxDB ─────────────────────────────────────────────────────────
+# -- Step 2 : InfluxDB ---------------------------------------------------------
 
 Step "2/8" "InfluxDB 2.x"
 
@@ -191,7 +191,7 @@ if (Test-Path $influxExe) {
     }
 }
 
-# ── Step 3 : LibreHardwareMonitor ─────────────────────────────────────────────
+# -- Step 3 : LibreHardwareMonitor ---------------------------------------------
 
 Step "3/8" "LibreHardwareMonitor"
 
@@ -230,7 +230,7 @@ if ($lhmExe) {
     }
 }
 
-# ── Step 4 : App monitor4me ───────────────────────────────────────────────────
+# -- Step 4 : App monitor4me ---------------------------------------------------
 
 Step "4/8" "Application monitor4me"
 
@@ -265,7 +265,7 @@ if ($appExe) {
     }
 }
 
-# ── Step 5 : Collecteur ───────────────────────────────────────────────────────
+# -- Step 5 : Collecteur -------------------------------------------------------
 
 Step "5/8" "Collecteur de metriques"
 
@@ -285,7 +285,7 @@ if (Test-Path $collectorDist) {
             $prebuilt = $rel.assets | Where-Object { $_.name -eq "collector-dist.zip" } | Select-Object -First 1
 
             if ($prebuilt) {
-                # Collecteur pre-compile disponible — pas besoin de compiler
+                # Collecteur pre-compile disponible - pas besoin de compiler
                 Info "Telechargement du collecteur pre-compile ($([int]($prebuilt.size/1MB)) MB)..."
                 $zipTmp = "$env:TEMP\collector-dist.zip"
                 Invoke-WebRequest $prebuilt.browser_download_url -OutFile $zipTmp -UseBasicParsing
@@ -327,15 +327,15 @@ if (Test-Path $collectorDist) {
         }
     }
 } else {
-    Warn "Node.js absent — impossible de compiler le collecteur si pas de pre-compile."
+    Warn "Node.js absent - impossible de compiler le collecteur si pas de pre-compile."
 }
 
-# ── Step 6 : Configuration InfluxDB ──────────────────────────────────────────
+# -- Step 6 : Configuration InfluxDB ------------------------------------------
 
 Step "6/8" "Configuration InfluxDB"
 
 if (-not (Test-Path $influxExe)) {
-    Warn "InfluxDB non installe — etape ignoree."
+    Warn "InfluxDB non installe - etape ignoree."
 } else {
     Info "Creation de l'organisation, du bucket et du token d'acces."
     if (Ask "Configurer InfluxDB ?") {
@@ -343,7 +343,7 @@ if (-not (Test-Path $influxExe)) {
         Write-Host ""
         Write-Host "  |  Choisis un mot de passe pour le compte admin InfluxDB." -ForegroundColor Gray
         Write-Host "  |  (base locale uniquement, jamais exposee sur internet)" -ForegroundColor Gray
-        $secPass   = Read-Host "  └─ Mot de passe [monitor4me-local]" -AsSecureString
+        $secPass   = Read-Host "  +- Mot de passe [monitor4me-local]" -AsSecureString
         $bstr      = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secPass)
         $adminPass = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
@@ -386,7 +386,7 @@ if (-not (Test-Path $influxExe)) {
                 $token = $result.auth.token
                 OK "InfluxDB configure (org: home, bucket: pc-monitor)"
             } else {
-                # Deja configure — connexion et recuperation token
+                # Deja configure - connexion et recuperation token
                 $cred   = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("admin:$adminPass"))
                 $signin = Invoke-WebRequest "$INFLUX_URL/api/v2/signin" `
                     -Method POST -Headers @{Authorization = "Basic $cred"} -UseBasicParsing
@@ -433,7 +433,7 @@ if (-not (Test-Path $influxExe)) {
     }
 }
 
-# ── Step 7 : Taches planifiees ────────────────────────────────────────────────
+# -- Step 7 : Taches planifiees ------------------------------------------------
 
 Step "7/8" "Taches planifiees (auto-demarrage)"
 
@@ -446,7 +446,7 @@ if (Ask "Creer les taches planifiees ?") {
     $nodeExe  = if ($nodePath) { $nodePath.Source } else { $null }
 
     if (-not $nodeExe) {
-        Warn "node.exe introuvable — tache collecteur ignoree."
+        Warn "node.exe introuvable - tache collecteur ignoree."
     }
 
     $atLogon  = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
@@ -495,7 +495,7 @@ if (Ask "Creer les taches planifiees ?") {
     }
 }
 
-# ── Step 8 : Raccourci bureau ─────────────────────────────────────────────────
+# -- Step 8 : Raccourci bureau -------------------------------------------------
 
 Step "8/8" "Raccourci bureau"
 
@@ -511,10 +511,10 @@ if ($appExe) {
         OK "Raccourci cree sur le bureau"
     }
 } else {
-    Warn "App non installee — raccourci ignore."
+    Warn "App non installee - raccourci ignore."
 }
 
-# ── Resume ────────────────────────────────────────────────────────────────────
+# -- Resume --------------------------------------------------------------------
 
 Write-Host ""
 Write-Host "  ================================================" -ForegroundColor Cyan
@@ -523,11 +523,11 @@ Write-Host "  ================================================" -ForegroundColor
 Write-Host ""
 
 $todo = [System.Collections.Generic.List[string]]::new()
-if (-not $nodeOk)                    { $todo.Add("  · Node.js        : https://nodejs.org") }
-if (-not (Test-Path $influxExe))     { $todo.Add("  · InfluxDB       : https://portal.influxdata.com/downloads/") }
-if (-not $lhmExe)                    { $todo.Add("  · LHM            : https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases") }
-if (-not (Test-Path $collectorDist)) { $todo.Add("  · Collecteur     : relance ce script (Node.js requis)") }
-if (-not $appExe)                    { $todo.Add("  · monitor4me.exe : https://github.com/$GITHUB_REPO/releases/latest") }
+if (-not $nodeOk)                    { $todo.Add("  - Node.js        : https://nodejs.org") }
+if (-not (Test-Path $influxExe))     { $todo.Add("  - InfluxDB       : https://portal.influxdata.com/downloads/") }
+if (-not $lhmExe)                    { $todo.Add("  - LHM            : https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases") }
+if (-not (Test-Path $collectorDist)) { $todo.Add("  - Collecteur     : relance ce script (Node.js requis)") }
+if (-not $appExe)                    { $todo.Add("  - monitor4me.exe : https://github.com/$GITHUB_REPO/releases/latest") }
 
 if ($todo.Count -gt 0) {
     Write-Host "  Etapes restantes a finaliser :" -ForegroundColor Yellow
@@ -539,9 +539,9 @@ Write-Host "  Note : au prochain demarrage de Windows, tout se lancera"
 Write-Host "  automatiquement en arriere-plan."
 Write-Host ""
 Write-Host "  En cas de probleme :"
-Write-Host "    · Antivirus : LHM peut etre signale (faux positif connu)"
+Write-Host "    - Antivirus : LHM peut etre signale (faux positif connu)"
 Write-Host "      Ajoute une exception pour LibreHardwareMonitor.exe"
-Write-Host "    · Relance ce script pour reparer une etape echouee"
+Write-Host "    - Relance ce script pour reparer une etape echouee"
 Write-Host ""
 
 if ($appExe -and (Test-Path $appExe)) {
