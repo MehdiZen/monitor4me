@@ -276,39 +276,60 @@ if (Test-Path $collectorDist) {
     OK "Deja installe : $collectorDist"
 } elseif ($nodeOk) {
     Info "Le collecteur lit LHM et envoie les donnees dans InfluxDB."
-    if (Ask "Telecharger et compiler le collecteur ?") {
+    if (Ask "Installer le collecteur ?") {
         try {
-            Info "Telechargement du code source..."
-            $rel    = Invoke-RestMethod `
+            Info "Recuperation de la derniere release GitHub..."
+            $rel = Invoke-RestMethod `
                 "https://api.github.com/repos/$GITHUB_REPO/releases/latest" `
                 -TimeoutSec 20 -Headers @{"User-Agent" = "monitor4me-install/1.0"}
-            $srcZip = "$env:TEMP\monitor4me-src.zip"
-            $srcTmp = "$env:TEMP\monitor4me-src"
-            Invoke-WebRequest $rel.zipball_url -OutFile $srcZip -UseBasicParsing
-            if (Test-Path $srcTmp) { Remove-Item $srcTmp -Recurse -Force }
-            Expand-Archive -Path $srcZip -DestinationPath $srcTmp -Force
-            Remove-Item $srcZip -Force
-            $inner        = Get-ChildItem $srcTmp -Directory | Select-Object -First 1
-            $collectorSrc = Join-Path $inner.FullName "collector"
-            if (-not (Test-Path $collectorSrc)) { throw "Dossier collector introuvable dans le zip" }
-            if (Test-Path $COLLECTOR_DIR) { Remove-Item $COLLECTOR_DIR -Recurse -Force }
-            Copy-Item $collectorSrc -Destination $COLLECTOR_DIR -Recurse -Force
-            Remove-Item $srcTmp -Recurse -Force
-            Info "Installation des dependances npm..."
-            Push-Location $COLLECTOR_DIR
-            & npm install --silent
-            Info "Compilation TypeScript..."
-            & npm run build
-            & npm prune --production --silent
-            Pop-Location
-            if (Test-Path $collectorDist) { OK "Collecteur compile : $collectorDist" }
-            else                           { Warn "Compilation echouee. Verifie les erreurs ci-dessus." }
+
+            # Cherche d abord le collecteur pre-compile (collector-dist.zip)
+            $prebuilt = $rel.assets | Where-Object { $_.name -eq "collector-dist.zip" } | Select-Object -First 1
+
+            if ($prebuilt) {
+                # Collecteur pre-compile disponible — pas besoin de compiler
+                Info "Telechargement du collecteur pre-compile ($([int]($prebuilt.size/1MB)) MB)..."
+                $zipTmp = "$env:TEMP\collector-dist.zip"
+                Invoke-WebRequest $prebuilt.browser_download_url -OutFile $zipTmp -UseBasicParsing
+                if (Test-Path $COLLECTOR_DIR) { Remove-Item $COLLECTOR_DIR -Recurse -Force }
+                New-Item -ItemType Directory $COLLECTOR_DIR | Out-Null
+                Expand-Archive -Path $zipTmp -DestinationPath $COLLECTOR_DIR -Force
+                Remove-Item $zipTmp -Force
+                OK "Collecteur installe (pre-compile)"
+            } elseif ($nodeOk) {
+                # Fallback : telecharge le source et compile
+                Warn "Collecteur pre-compile absent dans la release. Compilation depuis les sources..."
+                $srcZip = "$env:TEMP\monitor4me-src.zip"
+                $srcTmp = "$env:TEMP\monitor4me-src"
+                Invoke-WebRequest $rel.zipball_url -OutFile $srcZip -UseBasicParsing
+                if (Test-Path $srcTmp) { Remove-Item $srcTmp -Recurse -Force }
+                Expand-Archive -Path $srcZip -DestinationPath $srcTmp -Force
+                Remove-Item $srcZip -Force
+                $inner        = Get-ChildItem $srcTmp -Directory | Select-Object -First 1
+                $collectorSrc = Join-Path $inner.FullName "collector"
+                if (-not (Test-Path $collectorSrc)) { throw "Dossier collector introuvable dans le zip" }
+                if (Test-Path $COLLECTOR_DIR) { Remove-Item $COLLECTOR_DIR -Recurse -Force }
+                Copy-Item $collectorSrc -Destination $COLLECTOR_DIR -Recurse -Force
+                Remove-Item $srcTmp -Recurse -Force
+                Push-Location $COLLECTOR_DIR
+                Info "npm install..."
+                & npm install --silent
+                Info "Compilation TypeScript..."
+                & npm run build
+                & npm prune --production --silent
+                Pop-Location
+            } else {
+                Warn "Node.js absent et collecteur pre-compile non trouve dans la release."
+                Warn "Installe Node.js puis relance ce script."
+            }
+            if (Test-Path $collectorDist) { OK "Collecteur pret : $collectorDist" }
+            else                           { Warn "dist/index.js introuvable. Verifie les erreurs ci-dessus." }
         } catch {
             Warn "Echec : $_"
         }
     }
 } else {
-    Warn "Node.js absent — impossible de compiler le collecteur."
+    Warn "Node.js absent — impossible de compiler le collecteur si pas de pre-compile."
 }
 
 # ── Step 6 : Configuration InfluxDB ──────────────────────────────────────────
@@ -324,7 +345,10 @@ if (-not (Test-Path $influxExe)) {
         Write-Host ""
         Write-Host "  |  Choisis un mot de passe pour le compte admin InfluxDB." -ForegroundColor Gray
         Write-Host "  |  (base locale uniquement, jamais exposee sur internet)" -ForegroundColor Gray
-        $adminPass = Read-Host "  └─ Mot de passe [monitor4me-local]"
+        $secPass   = Read-Host "  └─ Mot de passe [monitor4me-local]" -AsSecureString
+        $bstr      = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secPass)
+        $adminPass = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
         if ([string]::IsNullOrWhiteSpace($adminPass)) { $adminPass = "monitor4me-local" }
 
         # Demarre InfluxDB temporairement
