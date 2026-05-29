@@ -27,6 +27,17 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNEODc2Nzc5OEU2Nzk5MDgKUldRSW1XZU9lV2VIUGVJTlh2MUVPSXFwQWwzYy8xR1pUaHFFbDNwS25OZlZqWVpLbGdud3NrNEQK",
+      "endpoints": [
+        "https://github.com/MehdiZen/monitor4me/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
