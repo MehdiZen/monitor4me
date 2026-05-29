@@ -1,77 +1,102 @@
-# PC Power Monitor
+# monitor4me
 
-Real-time power consumption monitoring for Windows — AMD Ryzen 7 7800X3D + RX 9070 XT.
+Real-time PC hardware monitoring dashboard — power draw, temperatures, voltages, fan speeds, and electricity costs with full historical tracking.
 
-## Quick Start
+Built with **Tauri 2** + **TypeScript** + **InfluxDB**.
 
-### 1. Prerequisites
+---
+
+## Features
+
+- **Live sensors** — CPU/GPU power & temperature, clocks, NVMe, PSU voltage rails (+12V / +5V / +3.3V), fan RPMs
+- **Electricity costs** — live €/h, today's total, 31-day history with daily breakdown
+- **Peripheral cost tracking** — monitors auto-detected via WMI, per-device wattage config; costs written to InfluxDB alongside PC data so history is immutable and accurate
+- **Anomaly detection** — z-score alerts for thermal throttling, GPU clock drops, rail instability
+- **Historical charts** — 24h hourly kWh, 7-day bar chart, full 31-day cost table (PC cost + total cost columns)
+
+## Stack
+
+| | |
+|---|---|
+| Desktop app | Tauri 2 · TypeScript · Vite |
+| Charts | Chart.js |
+| Collector | Node.js · TypeScript |
+| Sensor source | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) REST API |
+| Storage | InfluxDB 2 · Flux |
+| Monitor detection | WMI via PowerShell (`Get-PnpDevice`) |
+
+## Prerequisites
+
+- Windows 10/11
+- [Node.js](https://nodejs.org) 20+
+- [Rust](https://rustup.rs) (Tauri build only)
+- **LibreHardwareMonitor** running with web server enabled on `:8085`
+- **InfluxDB 2** running locally on `:8086`
+
+## Setup
+
+**1. InfluxDB** — create org `home`, bucket `pc-monitor`, and an API token, then expose it:
 
 ```powershell
-winget install InfluxData.InfluxDB
-winget install GrafanaLabs.Grafana
-# Node.js 20 LTS: https://nodejs.org
-# LHM: https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases
+[System.Environment]::SetEnvironmentVariable("INFLUX_TOKEN", "your-token", "User")
 ```
 
-### 2. Start services
-
-```powershell
-net start influxdb
-net start grafana
-# Start LHM.exe as administrator (or use setup-task.ps1)
-```
-
-### 3. Configure InfluxDB
-
-```powershell
-# Elevated PowerShell
-powershell -ExecutionPolicy Bypass -File scripts\setup-influx.ps1
-```
-
-### 4. Validate LHM sensors (critical for RX 9070 XT)
-
-```powershell
-powershell -File scripts\test-lhm.ps1
-```
-
-If GPU power shows 0 → LHM doesn't yet support the RX 9070 XT. The collector will log `(estimated)` and write `gpu_power_estimated=true` to InfluxDB.
-
-### 5. Build & run the collector
+**2. Collector**
 
 ```bash
 cd collector
+npm install && npm run build
+npm start
+```
+
+Polls LHM every 2s · writes metrics to InfluxDB · broadcasts live data on WebSocket `:8088`.
+
+**3. App**
+
+```bash
+cd app
 npm install
-npm run build
-INFLUX_TOKEN=<your-token> npm start
+npm run build:app
 ```
 
-### 6. Import Grafana dashboard
+Binary: `app/src-tauri/target/release/pc-monitor-app.exe` — a desktop shortcut is created automatically.
 
-1. Open http://localhost:3000
-2. Dashboards → Import → Upload JSON → `grafana/dashboards/pc-monitor.json`
-3. Select your InfluxDB datasource
+## Configuration
 
-### 7. Autostart at boot (optional)
+Click ⚙ in the app to set:
 
-```powershell
-# Elevated PowerShell — registers LHM + collector as Windows scheduled tasks
-powershell -ExecutionPolicy Bypass -File scripts\setup-task.ps1
-```
+- **Electricity tariff** (€/kWh) — synced live to the collector
+- **Detected monitors** — auto-listed from WMI, set wattage per screen
+- **Other peripherals** — amp, NAS, etc.
 
-## Architecture
+## Project Structure
 
 ```
-LHM.exe (REST :8085) → collector/src/index.ts → InfluxDB :8086 → Grafana :3000
+monitor4me/
+├── app/                    Tauri desktop app
+│   ├── src/
+│   │   ├── main.ts         UI logic & chart updates
+│   │   ├── influx.ts       InfluxDB Flux queries
+│   │   ├── ws-client.ts    WebSocket client
+│   │   └── charts.ts       Chart.js configuration
+│   └── src-tauri/          Rust layer (window controls, tray icon, token bridge)
+└── collector/              Node.js data collector
+    └── src/
+        ├── index.ts        Main poll loop
+        ├── lhm.ts          LHM sensor parsing
+        ├── metrics.ts      Power & cost calculations
+        ├── anomaly.ts      Anomaly detection (z-score)
+        ├── monitors.ts     WMI monitor detection
+        ├── influx.ts       InfluxDB writes
+        └── ws.ts           WebSocket broadcast
 ```
 
-## Environment variables
+## Notes
 
-| Variable | Default | Description |
-|---|---|---|
-| `INFLUX_TOKEN` | `pc-monitor-token` | InfluxDB API token |
+- **RX 9070 XT**: LHM GPU power support is limited — collector marks readings `gpu_power_estimated=true` when falling back to an estimate.
+- **RAM power**: No AM5 sensor available, fixed 10W estimate.
+- **CPU RAPL**: Underestimates ~7%, corrected by `CPU_RAPL_CORRECTION = 1.07` in `config.ts`.
 
-## Known limitations
+---
 
-- **RX 9070 XT**: GPU power via LHM is approximate / may be 0. Collector marks it `gpu_power_estimated=true`.
-- **RAM power**: No sensor available on AM5. Fixed 10W estimate.
-- **CPU RAPL**: Underestimates ~7%. Corrected by `CPU_RAPL_CORRECTION=1.07` in `config.ts`.
+MIT

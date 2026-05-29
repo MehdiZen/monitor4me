@@ -33,6 +33,7 @@
     <button class="tab-btn" data-tab="gpu">GPU</button>
     <button class="tab-btn" data-tab="rails">Rails</button>
     <button class="tab-btn" data-tab="energy">Énergie</button>
+    <button class="tab-btn" data-tab="history">Historique</button>
     <button class="tab-btn" data-tab="anomalies">Anomalies</button>
   </nav>
 
@@ -46,7 +47,7 @@
       <div class="cn-row" style="grid-template-columns:1.2fr 1.1fr 1.1fr 1.2fr">
 
         <div class="cn-cell">
-          <span class="cn-cap">Wall Power</span>
+          <span class="cn-cap">Wall power total</span>
           <div style="margin-top:8px;display:flex;align-items:baseline;gap:4px">
             <span class="cn-big" id="ov-wall">—</span>
           </div>
@@ -88,7 +89,10 @@
           </div>
           <div style="margin-top:10px">
             <div class="cn-kv"><span class="cn-kv-k">Power</span><span class="cn-kv-v" id="ov-cpu">—</span></div>
-            <div class="cn-kv"><span class="cn-kv-k">Température</span><span class="cn-kv-v" id="ov-cpu-temp">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Temp (Tctl)</span><span class="cn-kv-v" id="ov-cpu-temp">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Fan #1</span><span class="cn-kv-v" id="ov-fan1">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Fan #2</span><span class="cn-kv-v" id="ov-fan2">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Fan #5</span><span class="cn-kv-v" id="ov-fan5">—</span></div>
           </div>
         </div>
 
@@ -99,7 +103,10 @@
           </div>
           <div style="margin-top:10px">
             <div class="cn-kv"><span class="cn-kv-k">Power</span><span class="cn-kv-v" id="ov-gpu">—</span></div>
-            <div class="cn-kv"><span class="cn-kv-k">Température</span><span class="cn-kv-v" id="ov-gpu-temp">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Core temp</span><span class="cn-kv-v" id="ov-gpu-temp">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Hot Spot</span><span class="cn-kv-v" id="ov-gpu-hotspot">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">VRAM temp</span><span class="cn-kv-v" id="ov-gpu-mem-temp">—</span></div>
+            <div class="cn-kv"><span class="cn-kv-k">Fan</span><span class="cn-kv-v" id="ov-gpu-fan">—</span></div>
           </div>
         </div>
 
@@ -123,7 +130,7 @@
 
         <div class="cn-cell" style="padding-top:12px;padding-bottom:12px">
           <div class="cn-chart-head">
-            <span class="cn-cap">Wall power · 12 h</span>
+            <span class="cn-cap">Wall power PC · 12 h</span>
             <div class="cn-chart-legend">
               <span><span class="swatch" style="background:var(--pwr)"></span>W mur</span>
             </div>
@@ -148,17 +155,18 @@
       <!-- Row 4 · 3-day cost table -->
       <div class="cn-row" style="grid-template-columns:1fr">
         <div class="cn-cell" style="padding-top:12px;padding-bottom:0">
-          <span class="cn-cap" style="margin-bottom:10px">Coût électricité · 3 derniers jours</span>
+          <span class="cn-cap" style="margin-bottom:10px">Coût électricité · derniers jours</span>
           <table class="cost-table" id="cost-3d-table">
             <thead>
               <tr>
                 <th>Jour</th>
-                <th>Coût (€)</th>
+                <th>Coût PC (€)</th>
+                <th>Coût total (€)</th>
                 <th>kWh estimé</th>
               </tr>
             </thead>
             <tbody id="cost-3d-tbody">
-              <tr><td colspan="3" style="text-align:center;padding:12px;color:var(--faint)">Chargement…</td></tr>
+              <tr><td colspan="4" style="text-align:center;padding:12px;color:var(--faint)">Chargement…</td></tr>
             </tbody>
           </table>
         </div>
@@ -257,8 +265,24 @@
             <div class="sb-val" id="gpu-power-val">—</div>
           </div>
           <div>
-            <div class="sb-label">Température</div>
+            <div class="sb-label">Core temp</div>
             <div class="sb-val" id="gpu-temp-val">—</div>
+          </div>
+          <div>
+            <div class="sb-label">Hot Spot</div>
+            <div class="sb-val" id="gpu-hotspot-val">—</div>
+          </div>
+          <div>
+            <div class="sb-label">VRAM temp</div>
+            <div class="sb-val" id="gpu-mem-temp-val">—</div>
+          </div>
+          <div>
+            <div class="sb-label">Fan RPM</div>
+            <div class="sb-val" id="gpu-fan-val">—</div>
+          </div>
+          <div>
+            <div class="sb-label">Fan %</div>
+            <div class="sb-val" id="gpu-fan-pct-val">—</div>
           </div>
           <div>
             <div class="sb-label">Clock</div>
@@ -406,6 +430,34 @@
     </div>
 
     <!-- ── ANOMALIES ─────────────────────────────────────────────────────── -->
+    <!-- ── HISTORIQUE 31 JOURS ──────────────────────────────────────────────── -->
+    <div id="tab-history" class="tab-panel">
+
+      <div class="cn-row" style="grid-template-columns:1fr">
+        <div class="cn-cell" style="padding-top:12px;padding-bottom:14px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between">
+            <span class="cn-cap">Coût électricité · 31 derniers jours</span>
+            <span class="cn-mono" style="font-size:11px;color:var(--muted)" id="cost-31d-summary">—</span>
+          </div>
+          <table class="cost-table" style="margin-top:12px">
+            <thead>
+              <tr>
+                <th>Jour</th>
+                <th>Coût PC (€)</th>
+                <th>Coût total (€)</th>
+                <th>kWh estimé</th>
+                <th>W moyen</th>
+              </tr>
+            </thead>
+            <tbody id="cost-31d-tbody">
+              <tr><td colspan="4" class="c-muted" style="text-align:center;padding:12px">Chargement…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
     <div id="tab-anomalies" class="tab-panel">
 
       <!-- Row 1 · live -->
@@ -467,8 +519,14 @@
         </div>
 
         <div class="setting-group">
-          <div class="setting-label">Périphériques</div>
-          <div class="setting-hint">Écrans, ampli, etc. — ajoutés au Wall Power affiché.</div>
+          <div class="setting-label">Écrans détectés</div>
+          <div class="setting-hint">Saisis la consommation de chaque écran. Seuls les écrans <span style="color:var(--green)">actifs</span> sont comptés dans le total.</div>
+          <div id="monitors-list"></div>
+        </div>
+
+        <div class="setting-group">
+          <div class="setting-label">Autres périphériques</div>
+          <div class="setting-hint">Ampli, NAS, etc. — toujours comptés dans le total.</div>
           <div id="devices-list"></div>
           <button class="btn-add-device" id="btn-add-device">+ Ajouter un périphérique</button>
           <div class="setting-preview" id="devices-total" style="margin-top:8px">Total périphériques : 0 W</div>

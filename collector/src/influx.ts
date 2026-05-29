@@ -3,6 +3,7 @@ import { CONFIG } from "./config"
 import { LHMSensors } from "./lhm"
 import { ComputedMetrics } from "./metrics"
 import { Anomaly } from "./anomaly"
+import { runtimeConfig } from "./runtime-config"
 
 let writeApi: WriteApi | null = null
 
@@ -40,6 +41,8 @@ export async function writeMetrics(
     .floatField("mobo_power_w", metrics.moboPowerW)
     .floatField("wall_watts", metrics.wallWatts)
     .floatField("cost_per_hour", metrics.costPerHour)
+    .floatField("periph_watts", runtimeConfig.periphWatts)
+    .floatField("periph_cost_per_hour", (runtimeConfig.periphWatts / 1000) * runtimeConfig.tarifKwh)
     .stringField("anomaly_type", topAnomaly?.type ?? "")
     .stringField("anomaly_severity", topAnomaly?.severity ?? "")
     .booleanField("gpu_power_estimated", sensors.gpuPowerEstimated)
