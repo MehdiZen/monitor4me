@@ -1,12 +1,12 @@
 [package]
-name = "pc-monitor-app"
+name = "monitor4me"
 version = "1.0.0"
-description = "PC Power Monitor — CODEC"
+description = "monitor4me — PC Hardware Dashboard"
 authors = []
 edition = "2021"
 
 [lib]
-name = "pc_monitor_app_lib"
+name = "monitor4me_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
