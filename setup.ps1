@@ -324,7 +324,7 @@ if (Ask "Creer les 3 taches planifiees ?") {
         $taskParams = @( "-ExecutionPolicy", "Bypass",
                          "-File", "$ROOT\scripts\setup-task.ps1",
                          "-CollectorDir", "$ROOT\collector",
-                         "-StartNow", "`$false" )
+                         "-StartNow", "false" )
         if ($influxExe -and (Test-Path $influxExe)) { $taskParams += "-InfluxdPath", $influxExe }
         if ($lhmExe    -and (Test-Path $lhmExe))    { $taskParams += "-LhmPath",     $lhmExe   }
         & powershell.exe @taskParams
