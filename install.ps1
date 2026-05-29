@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Installeur autonome de monitor4me.
   Un seul fichier a telecharger et executer — aucun clone de repo requis.

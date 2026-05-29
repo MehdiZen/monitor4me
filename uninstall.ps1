@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Desinstalle monitor4me et ses dependances, etape par etape avec confirmation.

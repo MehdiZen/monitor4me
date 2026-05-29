@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Genere latest.json pour le Tauri auto-updater a partir du build signe.
   Prerequis : avoir lance build-signed.ps1 qui cree le .sig via createUpdaterArtifacts.

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Package le collecteur pre-compile pour la release GitHub.
   Genere collector-dist.zip contenant dist/ + node_modules (prod uniquement).
