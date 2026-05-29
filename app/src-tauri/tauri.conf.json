@@ -1,7 +1,7 @@
 {
   "productName": "monitor4me",
   "version": "1.0.0",
-  "identifier": "dev.monitor4me.app",
+  "identifier": "dev.monitor4me.dashboard",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
