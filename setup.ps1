@@ -53,6 +53,38 @@ function FindFirst([string[]]$paths) {
     $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
 }
 
+function Find-AppExe {
+    # Ordre de priorite : exe a cote du script > build dev > installs standard > registre
+    $candidates = @(
+        "$ROOT\monitor4me.exe",                                                      # zip release pose a cote de setup.ps1
+        "$ROOT\app\src-tauri\target\release\monitor4me.exe",                         # build dev local
+        "$env:LOCALAPPDATA\monitor4me\monitor4me.exe",                               # NSIS install (per-user, defaut Tauri)
+        "$env:LOCALAPPDATA\Programs\monitor4me\monitor4me.exe",                      # variante NSIS
+        "$env:ProgramFiles\monitor4me\monitor4me.exe",                               # MSI install (machine)
+        "${env:ProgramFiles(x86)}\monitor4me\monitor4me.exe"                         # MSI 32-bit
+    )
+    $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($found) { return $found }
+
+    # Recherche dans le registre (desinstalleur Windows)
+    $regRoots = @(
+        "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    )
+    foreach ($root in $regRoots) {
+        $key = Get-ChildItem $root -ErrorAction SilentlyContinue |
+               Get-ItemProperty -ErrorAction SilentlyContinue |
+               Where-Object { $_.DisplayName -like "*monitor4me*" } |
+               Select-Object -First 1
+        if ($key -and $key.InstallLocation) {
+            $exe = Join-Path $key.InstallLocation "monitor4me.exe"
+            if (Test-Path $exe) { return $exe }
+        }
+    }
+    return $null
+}
+
 # ── Bienvenue ─────────────────────────────────────────────────────────────────
 
 Clear-Host
@@ -338,11 +370,7 @@ if (Ask "Creer les 3 taches planifiees ?") {
 
 Write-Step "7/7" "Raccourci bureau"
 
-$appExe = Get-ChildItem "$ROOT\app\src-tauri\target\release" -Filter "*.exe" `
-              -ErrorAction SilentlyContinue |
-          Where-Object { $_.Name -notmatch "(_sa\.exe)$" -and $_.Name -notmatch "^build" } |
-          Sort-Object Length -Descending |
-          Select-Object -First 1 -ExpandProperty FullName
+$appExe = Find-AppExe
 
 if ($appExe) {
     Write-Info "App trouvee : $appExe"
@@ -357,9 +385,10 @@ if ($appExe) {
         Write-OK "Raccourci cree sur le bureau"
     }
 } else {
-    Write-Warn "App non compilee - raccourci ignore."
-    Write-Info "Pour compiler l'app (necessite Rust + VS Build Tools ~4 GB, ~20 min) :"
-    Write-Info "  cd app && npm install && npm run tauri build"
+    Write-Warn "monitor4me.exe introuvable."
+    Write-Info "Telecharge l'installeur depuis :"
+    Write-Info "  https://github.com/MehdiZen/monitor4me/releases/latest"
+    Write-Info "Lance l'installeur, puis relance setup.ps1 pour le raccourci et le lancement."
 }
 
 # ── Resume ────────────────────────────────────────────────────────────────────
@@ -375,7 +404,7 @@ if (-not $nodeOk)                        { $todo.Add("  · Node.js    : https://
 if (-not $influxExe)                     { $todo.Add("  · InfluxDB   : https://portal.influxdata.com/downloads/") }
 if (-not $lhmExe)                        { $todo.Add("  · LHM        : https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases") }
 if (-not (Test-Path $collectorDist))     { $todo.Add("  · Collecteur : cd collector && npm install && npm run build") }
-if (-not $appExe)                        { $todo.Add("  · App Tauri  : cd app && npm install && npm run tauri build") }
+if (-not $appExe)                        { $todo.Add("  · App        : telecharge l'installeur sur https://github.com/MehdiZen/monitor4me/releases/latest") }
 
 if ($todo.Count -gt 0) {
     Write-Host "  Etapes manuelles restantes :" -ForegroundColor Yellow
