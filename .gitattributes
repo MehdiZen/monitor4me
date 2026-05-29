@@ -1,0 +1,21 @@
+# PowerShell et batch — toujours CRLF sur Windows
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# Code source — LF universel
+*.ts   text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.rs   text eol=lf
+*.toml text eol=lf
+
+# Binaires — pas de conversion
+*.exe  binary
+*.zip  binary
+*.msi  binary
+*.sig  binary
+*.ico  binary
+*.png  binary

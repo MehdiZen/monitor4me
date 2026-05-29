@@ -1,4 +1,4 @@
-param([string]$LhmUrl = "http://localhost:8085/data.json")
+﻿param([string]$LhmUrl = "http://localhost:8085/data.json")
 $ErrorActionPreference = "Stop"
 
 Write-Host "Probing LHM at $LhmUrl..." -ForegroundColor Cyan
