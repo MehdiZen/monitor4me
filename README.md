@@ -8,9 +8,9 @@ Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 
 ## Installation (utilisateurs)
 
-**1.** Télécharger [`monitor4me-install.bat`](https://github.com/MehdiZen/monitor4me/releases/latest/download/monitor4me-install.bat) depuis la [dernière release](https://github.com/MehdiZen/monitor4me/releases/latest)
+**1.** Télécharger [`monitor4me-v1.0.0.zip`](https://github.com/MehdiZen/monitor4me/releases/latest/download/monitor4me-v1.0.0.zip) depuis la [dernière release](https://github.com/MehdiZen/monitor4me/releases/latest)
 
-**2.** Double-cliquer sur le fichier
+**2.** Extraire le ZIP (clic droit → Extraire tout), puis double-cliquer sur **monitor4me-install.bat**
 
 > **⚠️ Windows affichera un avertissement de sécurité** — c'est normal pour tout fichier téléchargé depuis internet.
 > Cliquer sur **Exécuter quand même** (ou "Run" si Windows est en anglais).
