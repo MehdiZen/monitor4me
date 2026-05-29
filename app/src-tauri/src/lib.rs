@@ -37,7 +37,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let quit = MenuItem::with_id(app, "quit", "Quitter PC Monitor", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quitter monitor4me", true, None::<&str>)?;
             let show = MenuItem::with_id(app, "show", "Afficher la fenêtre", true, None::<&str>)?;
             let sep  = tauri::menu::PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(app, &[&show, &sep, &quit])?;
@@ -49,7 +49,7 @@ pub fn run() {
                 .icon(icon)
                 .menu(&menu)
                 .show_menu_on_left_click(false)
-                .tooltip("PC Monitor — CODEC")
+                .tooltip("monitor4me")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => app.exit(0),
                     "show" => show_window(app),
