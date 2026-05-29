@@ -62,20 +62,23 @@ function RefreshPath {
 }
 
 function Find-AppExe {
+    # Chemins directs connus
     $paths = @(
         "$env:LOCALAPPDATA\monitor4me\monitor4me.exe",
         "$env:LOCALAPPDATA\Programs\monitor4me\monitor4me.exe",
         "$env:ProgramFiles\monitor4me\monitor4me.exe",
-        "${env:ProgramFiles(x86)}\monitor4me\monitor4me.exe"
+        "${env:ProgramFiles(x86)}\monitor4me\monitor4me.exe",
+        "$env:APPDATA\monitor4me\monitor4me.exe"
     )
-    # Registre
+    $found = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($found) { return $found }
+
+    # Registre desinstallation
     $regs = @(
         "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
         "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall",
         "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     )
-    $found = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if ($found) { return $found }
     foreach ($r in $regs) {
         $key = Get-ChildItem $r -ErrorAction SilentlyContinue |
                Get-ItemProperty -ErrorAction SilentlyContinue |
@@ -86,6 +89,12 @@ function Find-AppExe {
             if (Test-Path $exe) { return $exe }
         }
     }
+
+    # Recherche large dans LOCALAPPDATA
+    $broad = Get-ChildItem "$env:LOCALAPPDATA" -Filter "monitor4me.exe" -Recurse `
+             -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($broad) { return $broad.FullName }
+
     return $null
 }
 
@@ -132,18 +141,52 @@ $nodeOk = IsCmd "node"
 if ($nodeOk) {
     OK "Deja installe : $(node --version)"
 } else {
-    Info "Requis pour le collecteur de metriques (~50 MB)."
-    if (Ask "Installer Node.js ?") {
-        if (-not (IsCmd "winget")) {
-            Warn "winget introuvable. Installe Node.js manuellement : https://nodejs.org"
-        } else {
-            Info "Installation en cours..."
-            winget install --id OpenJS.NodeJS.LTS -e --source winget --silent `
-                --accept-package-agreements --accept-source-agreements
+    Info "Requis pour le collecteur de metriques (~30 MB)."
+    if (Ask "Installer Node.js LTS ?") {
+        try {
+            Info "Recuperation de la version LTS courante..."
+            $nodeMeta = Invoke-RestMethod "https://nodejs.org/dist/index.json" -TimeoutSec 15 |
+                        Where-Object { $_.lts -ne $false } | Select-Object -First 1
+            $nodeVer = $nodeMeta.version
+            $nodeMsi = "$env:TEMP\node-install.msi"
+            $nodeUrl = "https://nodejs.org/dist/$nodeVer/node-$nodeVer-x64.msi"
+            Info "Telechargement de Node.js $nodeVer..."
+            Invoke-WebRequest $nodeUrl -OutFile $nodeMsi -UseBasicParsing
+            Info "Installation en cours (MSI silencieux)..."
+            Start-Process msiexec.exe -ArgumentList "/i `"$nodeMsi`" /qn ADDLOCAL=ALL" -Wait
+            Remove-Item $nodeMsi -Force -ErrorAction SilentlyContinue
             RefreshPath
             $nodeOk = IsCmd "node"
             if ($nodeOk) { OK "Node.js $(node --version) installe" }
-            else          { Warn "Echec. Installe manuellement : https://nodejs.org" }
+            else {
+                # Cherche node.exe directement dans les chemins connus
+                $nodePaths = @(
+                    "$env:ProgramFiles\nodejs\node.exe",
+                    "${env:ProgramFiles(x86)}\nodejs\node.exe"
+                )
+                $nodeFound = $nodePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+                if ($nodeFound) {
+                    $env:PATH = $env:PATH + ";" + (Split-Path $nodeFound)
+                    $nodeOk = $true
+                    OK "Node.js installe (chemin ajuste) : $nodeFound"
+                } else {
+                    Warn "Installation MSI terminee mais node.exe introuvable."
+                    Warn "Redemarre le PC puis relance ce script."
+                }
+            }
+        } catch {
+            Warn "Echec telechargement MSI : $_"
+            Info "Tentative via winget..."
+            if (IsCmd "winget") {
+                winget install --id OpenJS.NodeJS.LTS -e --source winget --silent `
+                    --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+                RefreshPath
+                $nodeOk = IsCmd "node"
+                if ($nodeOk) { OK "Node.js $(node --version) installe via winget" }
+                else { Warn "Echec. Installe manuellement : https://nodejs.org" }
+            } else {
+                Warn "Installe Node.js manuellement : https://nodejs.org"
+            }
         }
     } else {
         Warn "Sans Node.js, le collecteur ne fonctionnera pas."
