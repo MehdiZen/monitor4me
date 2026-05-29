@@ -26,7 +26,8 @@ if (-not $CollectorDir) {
     $CollectorDir = (Resolve-Path "$PSScriptRoot\..\collector").Path
 }
 
-$NodePath = (Get-Command "node" -ErrorAction SilentlyContinue)?.Source
+$_nodeCmd = Get-Command "node" -ErrorAction SilentlyContinue
+$NodePath = if ($_nodeCmd) { $_nodeCmd.Source } else { $null }
 if (-not $NodePath) {
     throw "node.exe absent du PATH. Installe Node.js 20 LTS : https://nodejs.org"
 }

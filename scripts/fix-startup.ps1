@@ -25,7 +25,7 @@ if ($old) {
 
 # ── 2. Recrée les 3 taches avec les bons chemins ─────────────────────────────
 Write-Host "  ·   Recreation des taches PC-Monitor-*..."
-& powershell.exe -ExecutionPolicy Bypass -File "$ROOT\scripts\setup-task.ps1" -StartNow $false
+& powershell.exe -ExecutionPolicy Bypass -File "$ROOT\scripts\setup-task.ps1" -StartNow false
 Write-Host "  OK  Taches a jour" -ForegroundColor Green
 
 # ── 3. Verifie le registre ────────────────────────────────────────────────────
