@@ -57,10 +57,20 @@ async fn run_silent_install(
         .join("silent-install.ps1");
 
     if !script_path.exists() {
-        script_path = app
-            .path()
-            .resolve("resources/silent-install.ps1", tauri::path::BaseDirectory::Resource)
-            .unwrap_or_default();
+        if let Ok(res_dir) = app.path().resource_dir() {
+            let paths = vec![
+                res_dir.join("silent-install.ps1"),
+                res_dir.join("_up_").join("_up_").join("scripts").join("silent-install.ps1"),
+                res_dir.join("scripts").join("silent-install.ps1"),
+                res_dir.join("resources").join("silent-install.ps1"),
+            ];
+            for p in paths {
+                if p.exists() {
+                    script_path = p;
+                    break;
+                }
+            }
+        }
     }
 
     if !script_path.exists() {

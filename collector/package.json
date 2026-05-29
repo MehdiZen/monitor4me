@@ -1,6 +1,6 @@
 {
   "name": "pc-monitor-collector",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PC power monitoring collector — polls LHM, writes to InfluxDB, detects anomalies",
   "main": "dist/index.js",
   "scripts": {
