@@ -702,6 +702,7 @@ async function boot(): Promise<void> {
     if (!hostSynced && msg.config?.host) {
       hostSynced = true
       setInfluxHost(msg.config.host)
+      refreshHistorical()
     }
     // Re-sync periphWatts whenever the active monitor set changes
     const pw = totalPeriphWatts()
