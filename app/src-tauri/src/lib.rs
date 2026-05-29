@@ -3,6 +3,12 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
+use std::process::{Command, Stdio};
+use std::os::windows::process::CommandExt;
+use std::io::{BufRead, BufReader};
+
+// creation flag to prevent console window flashing under Windows
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[tauri::command]
 fn get_influx_token() -> String {
@@ -38,10 +44,75 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn run_silent_install(
+    admin_pass: String,
+    tarif_kwh: f64,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    // 1. Resolve script path dynamically (supports dev and release modes)
+    let mut script_path = std::env::current_dir()
+        .unwrap_or_default()
+        .join("scripts")
+        .join("silent-install.ps1");
+
+    if !script_path.exists() {
+        script_path = app
+            .path()
+            .resolve("resources/silent-install.ps1", tauri::path::BaseDirectory::Resource)
+            .unwrap_or_default();
+    }
+
+    if !script_path.exists() {
+        return Err("Impossible de localiser le script d'installation silent-install.ps1".to_string());
+    }
+
+    let script_str = script_path.to_string_lossy().into_owned();
+
+    // 2. Spawn powershell process silently in background
+    let mut child = Command::new("powershell")
+        .creation_flags(CREATE_NO_WINDOW)
+        .args(&[
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            &script_str,
+            "-AdminPass",
+            &admin_pass,
+            "-TarifKwh",
+            &tarif_kwh.to_string(),
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Échec du lancement de l'installation : {}", e))?;
+
+    let stdout = child.stdout.take().ok_or("Impossible de capturer la sortie standard")?;
+    let reader = BufReader::new(stdout);
+
+    // 3. Read output line by line and emit events to frontend in real-time
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        for line in reader.lines() {
+            if let Ok(l) = line {
+                let _ = handle.emit("setup-log", l);
+            }
+        }
+    });
+
+    // 4. Wait for installation script completion
+    let status = child.wait().map_err(|e| format!("Attente du processus en échec : {}", e))?;
+    if !status.success() {
+        return Err("Le script d'installation silencieuse a retourné un code d'erreur.".to_string());
+    }
+
+    Ok(())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            get_influx_token, minimize_win, maximize_win, hide_win, install_update
+            get_influx_token, minimize_win, maximize_win, hide_win, install_update, run_silent_install
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {

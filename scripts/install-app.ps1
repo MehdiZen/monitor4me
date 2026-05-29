@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Installe les prérequis et build l'app Tauri PC Monitor.

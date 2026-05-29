@@ -1,4 +1,4 @@
-﻿#Requires -RunAsAdministrator
+#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
   Repart de zero : tue tous les process PC Monitor, supprime toutes les taches,

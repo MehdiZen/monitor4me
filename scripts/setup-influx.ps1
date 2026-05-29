@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Configure InfluxDB 2.x via REST API (pas de CLI necessaire).
   Cree l'org, le bucket et le token pour le collector.

@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "notes": "Premiere release stable",
+  "pub_date": "2026-05-29T17:29:24Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRSW1XZU9lV2VIUFlaNWZzRGtyZUtUcE1DRm1TQWI0VFNhbHhpNUlHNUFGeHlYYURnMHJhT1o2UlVESy8zU0hXdFZtS2xDV0xEZ2tsZUpCdHRYQk4rZXJzL1dtb0tXUEFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgwMDc1NzQ3CWZpbGU6bW9uaXRvcjRtZV8xLjAuMF94NjQtc2V0dXAuZXhlCmI4KytybStKTmo4N0VncEJ0aUhqdVRvYzliamtXUzlwTDRJYzRXblpVRElmYlFjNXRuNTl3eEhSYi9RbDFBdS9XdXprbXI3NmJBaTFBaGJsZ0RoWkR3PT0K",
+      "url": "https://github.com/MehdiZen/monitor4me/releases/download/v1.0.0/monitor4me_1.0.0_x64-setup.exe"
+    }
+  }
+}

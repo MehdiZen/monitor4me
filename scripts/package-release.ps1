@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Cree monitor4me-v{Version}.zip — le seul fichier que l'utilisateur doit telecharger.
   Contient : monitor4me-install.bat + install.ps1
