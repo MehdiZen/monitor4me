@@ -35,23 +35,17 @@ export async function detectMonitors(): Promise<MonitorInfo[]> {
             Array.isArray(parsed) ? parsed : [parsed]
 
           const all: MonitorInfo[] = items
-            .filter(m => m.InstanceId)
+            .filter(m => m && m.InstanceId)
             .map(m => ({
               id:     m.InstanceId,
               name:   m.FriendlyName || m.InstanceId,
               active: (m.Status ?? "").toLowerCase() === "ok",
             }))
 
-          // Deduplicate by name: if same display name appears multiple times
-          // (ghost port entries), keep the active one; otherwise keep the first.
-          const seen = new Map<string, MonitorInfo>()
-          for (const m of all) {
-            const existing = seen.get(m.name)
-            if (!existing || (!existing.active && m.active)) {
-              seen.set(m.name, m)
-            }
-          }
-          const monitors: MonitorInfo[] = [...seen.values()]
+          // Garde uniquement les moniteurs actifs (Status === "OK").
+          // Les ports fantômes ont Status != "OK" → filtrés naturellement.
+          // Deux moniteurs identiques sur ports différents ont tous deux Status="OK" → conservés.
+          const monitors: MonitorInfo[] = all.filter(m => m.active)
 
           cachedMonitors = monitors
           console.log(`[monitors] detected: ${monitors.map(m => `${m.active ? "●" : "○"} ${m.name}`).join(", ")}`)
