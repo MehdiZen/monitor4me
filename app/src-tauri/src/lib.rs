@@ -42,7 +42,11 @@ pub fn run() {
             let sep  = tauri::menu::PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(app, &[&show, &sep, &quit])?;
 
+            let icon = app.default_window_icon().cloned()
+                .expect("no app icon — check bundle.icon in tauri.conf.json");
+
             TrayIconBuilder::new()
+                .icon(icon)
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .tooltip("PC Monitor — CODEC")

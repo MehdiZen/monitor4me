@@ -3,6 +3,7 @@ import { CONFIG } from "./config"
 import { LHMSensors } from "./lhm"
 import { ComputedMetrics } from "./metrics"
 import { Anomaly } from "./anomaly"
+import { MonitorInfo } from "./monitors"
 import { updateConfig, runtimeConfig } from "./runtime-config"
 
 export interface WSMessage {
@@ -10,12 +11,14 @@ export interface WSMessage {
   sensors: LHMSensors
   metrics: ComputedMetrics
   anomalies: Anomaly[]
+  monitors: MonitorInfo[]
   config: { tarifKwh: number }
 }
 
 interface WSConfigMessage {
   type: "config"
   tarifKwh?: number
+  periphWatts?: number
 }
 
 let wss: WebSocketServer | null = null
@@ -31,6 +34,10 @@ export function startWSServer(): void {
           if (typeof msg.tarifKwh === "number" && msg.tarifKwh > 0) {
             updateConfig({ tarifKwh: msg.tarifKwh })
             console.log(`[Config] Tarif kWh mis a jour : €${msg.tarifKwh}`)
+          }
+          if (typeof msg.periphWatts === "number" && msg.periphWatts >= 0) {
+            updateConfig({ periphWatts: msg.periphWatts })
+            console.log(`[Config] Periph watts mis a jour : ${msg.periphWatts} W`)
           }
         }
       } catch { /* ignore malformed messages */ }

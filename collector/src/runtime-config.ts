@@ -4,12 +4,14 @@ import * as path from "path"
 
 export interface UserConfig {
   tarifKwh: number
+  periphWatts: number
 }
 
 const CONFIG_FILE = path.join(process.cwd(), "user-config.json")
 
 export const runtimeConfig: UserConfig = {
   tarifKwh: CONFIG.TARIF_KWH,
+  periphWatts: 0,
 }
 
 // Load persisted config on startup
@@ -19,6 +21,10 @@ try {
   if (typeof data.tarifKwh === "number" && data.tarifKwh > 0) {
     runtimeConfig.tarifKwh = data.tarifKwh
     console.log(`  Tarif kWh : €${runtimeConfig.tarifKwh} (user-config.json)`)
+  }
+  if (typeof data.periphWatts === "number" && data.periphWatts >= 0) {
+    runtimeConfig.periphWatts = data.periphWatts
+    console.log(`  Periph watts : ${runtimeConfig.periphWatts} W (user-config.json)`)
   }
 } catch {
   // No config file yet, use default

@@ -647,6 +647,169 @@ html, body {
 }
 .btn-secondary:hover { color: var(--text); border-color: var(--muted); }
 
+/* ── Console layout tokens ────────────────────────────────────────────────── */
+
+:root {
+  /* chart palette — matches charts.ts constants */
+  --cpu:  #e6b35a;
+  --gpu:  #e96f6f;
+  --pwr:  #9cc6ed;
+  --ok:   #5ec588;
+  --crit: #ff5858;
+  --dim:  #7d8a98;
+  --faint:#3a4f63;
+  /* monospace font shorthand */
+  --mono: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+}
+
+/* Row = grid container; columns defined via inline style */
+.cn-row {
+  display: grid;
+  border-bottom: 1px solid var(--border);
+}
+.cn-row:last-child { border-bottom: none; }
+
+/* Cell = one column of a row */
+.cn-cell {
+  padding: 14px 18px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+.cn-cell:last-child { border-right: none; }
+
+/* Caption — small-caps label */
+.cn-cap {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  color: var(--muted);
+}
+
+/* Big value — main metric number */
+.cn-big {
+  font-family: var(--mono);
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sub-line below cn-big */
+.cn-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+  line-height: 1.5;
+}
+
+/* Component name (CPU model, etc.) */
+.cn-name {
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 3px;
+}
+
+/* Key-value pair row */
+.cn-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border2);
+  font-size: 12px;
+}
+.cn-kv:last-child { border-bottom: none; }
+
+.cn-kv-k {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.cn-kv-v {
+  font-family: var(--mono);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chart header: caption left, legend right */
+.cn-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+/* Legend items in chart header */
+.cn-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* Color swatch dot in legend */
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* ── Instantané sidebar (CPU / GPU pages) ─────────────────────────────────── */
+
+.stat-sidebar {
+  padding: 14px 16px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sb-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.sb-val {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1;
+}
+
+/* ── Monitor badges (settings) ───────────────────────────────────────────── */
+
+.monitor-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  letter-spacing: .04em;
+}
+.monitor-badge.active { color: var(--ok);   background: rgba(94,197,136,.1); border: 1px solid rgba(94,197,136,.2); }
+.monitor-badge.off    { color: var(--muted); background: transparent;         border: 1px solid var(--border); }
+
+.monitor-empty {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 8px 0;
+  font-style: italic;
+}
+
 /* ── Statusbar ────────────────────────────────────────────────────────────── */
 
 .statusbar {

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core"
 import { store } from "./store"
 import { startWS, onMessage, sendConfig } from "./ws-client"
-import { getTodayCost, getMonthlyProjection, get24hHourly, get7dDaily, getAnomalyHistory, getLast3DaysCost } from "./influx"
+import { getTodayCost, getMonthlyProjection, get24hHourly, get7dDaily, getAnomalyHistory, getLast3DaysCost, getLast31DaysCost } from "./influx"
 import {
   makeCpuPowerChart, makeCpuTempChart, makeCpuClockChart,
   makeGpuPowerChart, makeGpuTempChart, makeGpuClockChart,
@@ -68,6 +68,14 @@ function updateOverview(msg: WSMessage): void {
   set("ov-rail12",  sensors.rail12V  > 0.5 ? `${sensors.rail12V.toFixed(3)} V`  : "N/A")
   set("ov-rail5",   sensors.rail5V   > 0.5 ? `${sensors.rail5V.toFixed(3)} V`   : "N/A")
   set("ov-rail3v3", sensors.rail3v3  > 0.5 ? `${sensors.rail3v3.toFixed(3)} V`  : "N/A")
+  // GPU extras
+  set("ov-gpu-hotspot", sensors.gpuHotspotTempC > 0 ? `${sensors.gpuHotspotTempC.toFixed(0)}°C` : "N/A")
+  set("ov-gpu-mem-temp", sensors.gpuMemTempC > 0 ? `${sensors.gpuMemTempC.toFixed(0)}°C` : "N/A")
+  set("ov-gpu-fan", sensors.gpuFanRpm > 0 ? `${sensors.gpuFanRpm.toFixed(0)} RPM (${sensors.gpuFanPct.toFixed(0)}%)` : "N/A")
+  // CPU fans (mobo headers)
+  set("ov-fan1", sensors.fan1Rpm > 0 ? `${sensors.fan1Rpm.toFixed(0)} RPM` : "—")
+  set("ov-fan2", sensors.fan2Rpm > 0 ? `${sensors.fan2Rpm.toFixed(0)} RPM` : "—")
+  set("ov-fan5", sensors.fan5Rpm > 0 ? `${sensors.fan5Rpm.toFixed(0)} RPM` : "—")
 
   const topAnomaly = msg.anomalies[0]
   const statusEl = el("ov-status")
@@ -93,6 +101,10 @@ function updateGpuStats(msg: WSMessage): void {
   const { sensors } = msg
   set("gpu-power-val", `${sensors.gpuPowerW.toFixed(1)} W${sensors.gpuPowerEstimated ? " *" : ""}`)
   set("gpu-temp-val", `${sensors.gpuTempC.toFixed(0)} °C`)
+  set("gpu-hotspot-val", sensors.gpuHotspotTempC > 0 ? `${sensors.gpuHotspotTempC.toFixed(0)} °C` : "—")
+  set("gpu-mem-temp-val", sensors.gpuMemTempC > 0 ? `${sensors.gpuMemTempC.toFixed(0)} °C` : "—")
+  set("gpu-fan-val", sensors.gpuFanRpm > 0 ? `${sensors.gpuFanRpm.toFixed(0)} RPM` : "—")
+  set("gpu-fan-pct-val", sensors.gpuFanPct > 0 ? `${sensors.gpuFanPct.toFixed(0)} %` : "—")
   set("gpu-clock-val", `${sensors.gpuClockMhz.toFixed(0)} MHz`)
   const warning = el("gpu-estimated-warn")
   if (warning) warning.style.display = sensors.gpuPowerEstimated ? "block" : "none"
@@ -162,55 +174,92 @@ function updateCharts(): void {
 
 // ── 3-day cost table ─────────────────────────────────────────────────────────
 
-function updateCost3dTable(days: { date: string; cost: number }[], todayCost: number): void {
+function periphCostForHours(periphWatts: number, tarif: number, hours: number): number {
+  return (periphWatts / 1000) * tarif * hours
+}
+
+function updateCost3dTable(days: { date: string; costPc: number; costPeriph: number }[], today: { costPc: number; costPeriph: number }): void {
   const tbody = el<HTMLTableSectionElement>("cost-3d-tbody")
   if (!tbody) return
 
-  const tarif = loadSavedTarif()
-  const todayLabel = new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })
+  const tarif      = loadSavedTarif()
+  const now        = new Date()
+  const todayLabel = now.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })
 
-  // Merge InfluxDB days with live today cost
-  const rows = days.map(d => ({ ...d, isToday: false }))
-  const todayInRows = rows.find(r => r.date === todayLabel)
-  if (todayInRows) {
-    todayInRows.cost = todayCost
-    todayInRows.isToday = true
-  } else {
-    rows.push({ date: todayLabel, cost: todayCost, isToday: true })
-  }
+  const rows: { date: string; costPc: number; costPeriph: number; isToday: boolean }[] = [
+    { date: todayLabel, costPc: today.costPc, costPeriph: today.costPeriph, isToday: true },
+    ...days
+      .filter(d => d.date !== todayLabel)
+      .map(d => ({ date: d.date, costPc: d.costPc, costPeriph: d.costPeriph, isToday: false })),
+  ]
 
-  if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="3" class="c-muted" style="text-align:center;padding:10px;">Pas encore de données</td></tr>`
-    return
+  tbody.innerHTML = rows.map(r => {
+    const costTotal = r.costPc + r.costPeriph
+    const kwh = tarif > 0 ? (r.costPc / tarif).toFixed(3) : "—"
+    const cls = r.isToday ? " class=\"today-row\"" : ""
+    const dayLabel = r.isToday ? `${r.date} <span style="opacity:.5;font-size:11px;">(en cours)</span>` : r.date
+    return `<tr${cls}><td>${dayLabel}</td><td>€${r.costPc.toFixed(3)}</td><td>€${costTotal.toFixed(3)}</td><td>${kwh} kWh</td></tr>`
+  }).join("") || `<tr><td colspan="4" class="c-muted" style="text-align:center;padding:10px;">Pas encore de données</td></tr>`
+}
+
+function updateCost31dTable(days: { date: string; costPc: number; costPeriph: number; kwh: number }[], today: { costPc: number; costPeriph: number }): void {
+  const tbody = el<HTMLTableSectionElement>("cost-31d-tbody")
+  if (!tbody) return
+
+  const tarif      = loadSavedTarif()
+  const now        = new Date()
+  const midnight   = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const hoursToday = (now.getTime() - midnight.getTime()) / 3_600_000
+  const todayLabel = now.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })
+
+  const todayKwh = tarif > 0 ? today.costPc / tarif : 0
+  const rows: { date: string; costPc: number; costPeriph: number; kwh: number; isToday: boolean }[] = [
+    { date: todayLabel, costPc: today.costPc, costPeriph: today.costPeriph, kwh: todayKwh, isToday: true },
+    ...days
+      .filter(d => d.date !== todayLabel)
+      .map(d => ({ date: d.date, costPc: d.costPc, costPeriph: d.costPeriph, kwh: d.kwh, isToday: false })),
+  ]
+
+  const totalPc     = rows.reduce((s, r) => s + r.costPc, 0)
+  const totalPeriph = rows.reduce((s, r) => s + r.costPeriph, 0)
+  const avgPc = rows.length > 0 ? totalPc / rows.length : 0
+
+  const summaryEl = el("cost-31d-summary")
+  if (summaryEl) {
+    summaryEl.textContent = `${rows.length} j · PC €${totalPc.toFixed(2)} · total €${(totalPc + totalPeriph).toFixed(2)} · moy €${avgPc.toFixed(3)}/j`
   }
 
   tbody.innerHTML = rows.map(r => {
-    const kwh = tarif > 0 ? (r.cost / tarif).toFixed(3) : "—"
+    const costTotal = r.costPc + r.costPeriph
     const cls = r.isToday ? " class=\"today-row\"" : ""
     const dayLabel = r.isToday ? `${r.date} <span style="opacity:.5;font-size:11px;">(en cours)</span>` : r.date
-    return `<tr${cls}><td>${dayLabel}</td><td>€${r.cost.toFixed(3)}</td><td>${kwh} kWh</td></tr>`
-  }).join("")
+    const hours = r.isToday ? hoursToday : 24
+    const avgW = r.kwh > 0 && hours > 0 ? (r.kwh * 1000 / hours).toFixed(0) : "—"
+    return `<tr${cls}><td>${dayLabel}</td><td>€${r.costPc.toFixed(3)}</td><td>€${costTotal.toFixed(3)}</td><td>${r.kwh.toFixed(3)} kWh</td><td style="color:var(--muted)">${avgW} W moy</td></tr>`
+  }).join("") || `<tr><td colspan="5" class="c-muted" style="text-align:center;padding:10px;">Pas encore de données</td></tr>`
 }
 
 // ── Historical data refresh (every 60s) ──────────────────────────────────────
 
 async function refreshHistorical(): Promise<void> {
   try {
-    const [todayCost, monthlyProj, hourly, daily, days3] = await Promise.all([
+    const [today, monthlyProj, hourly, daily, days3, days31] = await Promise.all([
       getTodayCost(),
       getMonthlyProjection(),
       get24hHourly(),
       get7dDaily(),
       getLast3DaysCost(),
+      getLast31DaysCost(),
     ])
     const noInflux = el("energy-no-influx")
     if (noInflux) noInflux.style.display = "none"
-    set("ov-cost-today", `€${todayCost.toFixed(3)}`)
-    set("energy-cost-today", `€${todayCost.toFixed(3)}`)
+    set("ov-cost-today", `€${today.costPc.toFixed(3)}`)
+    set("energy-cost-today", `€${today.costPc.toFixed(3)}`)
     set("energy-proj-month", `~€${monthlyProj.toFixed(2)}`)
     updateEnergyBarChart(energyBarChart, hourly)
     update7dChart(sevenDayChart, daily)
-    updateCost3dTable(days3, todayCost)
+    updateCost3dTable(days3, today)
+    updateCost31dTable(days31, today)
   } catch (err) {
     console.warn("[InfluxDB] historical refresh failed:", err)
     const noInflux = el("energy-no-influx")
@@ -232,10 +281,11 @@ async function refreshHistorical(): Promise<void> {
   } catch { /* ignore */ }
 }
 
-// ── Settings — tarif & périphériques ─────────────────────────────────────────
+// ── Settings — tarif, périphériques & moniteurs ──────────────────────────────
 
-const TARIF_KEY   = "pc-monitor-tarif-kwh"
-const DEVICES_KEY = "pc-monitor-devices"
+const TARIF_KEY    = "pc-monitor-tarif-kwh"
+const DEVICES_KEY  = "pc-monitor-devices"
+const MONITORS_KEY = "pc-monitor-monitors"  // { [id]: watts }
 const DEFAULT_TARIF = 0.2516
 
 interface PeriphDevice { id: string; name: string; watts: number }
@@ -248,9 +298,24 @@ function loadDevices(): PeriphDevice[] {
   try { return JSON.parse(localStorage.getItem(DEVICES_KEY) ?? "[]") } catch { return [] }
 }
 
-function totalPeriphWatts(): number {
-  return loadDevices().reduce((s, d) => s + (d.watts || 0), 0)
+function loadMonitorWatts(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(MONITORS_KEY) ?? "{}") } catch { return {} }
 }
+
+function saveMonitorWatts(map: Record<string, number>): void {
+  localStorage.setItem(MONITORS_KEY, JSON.stringify(map))
+}
+
+// Live: only currently active monitors (for today's cost and overview)
+function totalPeriphWatts(): number {
+  const devices  = loadDevices().reduce((s, d) => s + (d.watts || 0), 0)
+  const monitorWatts = loadMonitorWatts()
+  const activeMonitorW = (store.latest?.monitors ?? [])
+    .filter(m => m.active)
+    .reduce((s, m) => s + (monitorWatts[m.id] || 0), 0)
+  return devices + activeMonitorW
+}
+
 
 // ── Device list renderer ──────────────────────────────────────────────────────
 
@@ -297,6 +362,51 @@ function updateDeviceTotal(): void {
   if (t) t.textContent = `Total périphériques : ${total} W`
 }
 
+// ── Monitor wattage config ────────────────────────────────────────────────────
+
+function renderMonitorList(): void {
+  const container = el("monitors-list")
+  if (!container) return
+
+  const monitors = store.latest?.monitors ?? []
+  const watts    = loadMonitorWatts()
+
+  if (monitors.length === 0) {
+    container.innerHTML = `<div class="monitor-empty">Aucun écran détecté (poll toutes les 5 min)</div>`
+    return
+  }
+
+  container.innerHTML = monitors.map(m => {
+    const w = watts[m.id] ?? 0
+    const badge = m.active
+      ? `<span class="monitor-badge active">● actif</span>`
+      : `<span class="monitor-badge off">○ inactif</span>`
+    return `
+      <div class="device-row" data-monitor-id="${m.id}">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.name}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">${m.id.split("\\").pop() ?? m.id}</div>
+        </div>
+        ${badge}
+        <input class="device-watts monitor-watts" type="number" value="${w || ""}" min="0" max="1000"
+          placeholder="W" data-monitor-id="${m.id}" style="width:64px" />
+        <span class="device-unit">W</span>
+      </div>`
+  }).join("")
+
+  container.querySelectorAll<HTMLInputElement>(".monitor-watts").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const id  = inp.dataset.monitorId!
+      const map = loadMonitorWatts()
+      const v   = parseFloat(inp.value) || 0
+      if (v > 0) map[id] = v
+      else delete map[id]
+      saveMonitorWatts(map)
+      refreshPreview()
+    })
+  })
+}
+
 // ── Settings modal ────────────────────────────────────────────────────────────
 
 function refreshPreview(): void {
@@ -320,6 +430,7 @@ function setupSettings(): void {
     draftDevices = loadDevices().map(d => ({ ...d }))
     input.value  = String(loadSavedTarif())
     renderDeviceList()
+    renderMonitorList()
     refreshPreview()
     backdrop.classList.add("open")
   }
@@ -350,7 +461,7 @@ function setupSettings(): void {
     input.style.borderColor = ""
     localStorage.setItem(TARIF_KEY, String(v))
     localStorage.setItem(DEVICES_KEY, JSON.stringify(draftDevices.filter(d => d.watts > 0 || d.name)))
-    sendConfig(v)
+    sendConfig(v, totalPeriphWatts())
     close()
   })
 }
@@ -370,15 +481,22 @@ async function boot(): Promise<void> {
   initCharts()
   setupSettings()
   setupWindowControls()
-  sendConfig(loadSavedTarif())
+  sendConfig(loadSavedTarif(), totalPeriphWatts())
   startWS()
 
+  let lastPeriphW = -1
   onMessage((msg) => {
     updateOverview(msg)
     updateCpuStats(msg)
     updateGpuStats(msg)
     updateCharts()
     updateAnomalyTable()
+    // Re-sync periphWatts whenever the active monitor set changes
+    const pw = totalPeriphWatts()
+    if (pw !== lastPeriphW) {
+      lastPeriphW = pw
+      sendConfig(loadSavedTarif(), pw)
+    }
   })
 
   // Historical data: immediately + every 60s

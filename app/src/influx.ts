@@ -46,18 +46,28 @@ export interface HourlyKWh {
   totalKwh: number
 }
 
-export async function getTodayCost(): Promise<number> {
-  // cost_per_hour is a rate (€/h). Each sample covers POLL_INTERVAL_S seconds.
-  // actual cost = sum(rate_i) * poll_interval_h = sum * (2/3600)
+export async function getTodayCost(): Promise<{ costPc: number; costPeriph: number }> {
+  // Both cost_per_hour and periph_cost_per_hour are written at the same ticks (PC on).
+  // Reading both from DB ensures periph cost only covers hours the PC was actually running.
+  const now = new Date()
+  const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startISO = localMidnight.toISOString()
+
   const csv = await query(`
     from(bucket: "${BUCKET}")
-      |> range(start: today())
-      |> filter(fn: (r) => r._measurement == "hardware" and r._field == "cost_per_hour" and r.host == "${HOST}")
+      |> range(start: ${startISO})
+      |> filter(fn: (r) => r._measurement == "hardware"
+          and (r._field == "cost_per_hour" or r._field == "periph_cost_per_hour")
+          and r.host == "${HOST}")
       |> sum()
       |> map(fn: (r) => ({ r with _value: r._value * 2.0 / 3600.0 }))
+      |> pivot(rowKey: ["_start"], columnKey: ["_field"], valueColumn: "_value")
   `)
-  const rows = parseCSV(csv)
-  return parseFloat(rows[0]?._value ?? "0") || 0
+  const row = parseCSV(csv)[0]
+  return {
+    costPc:     parseFloat(row?.cost_per_hour      ?? "0") || 0,
+    costPeriph: parseFloat(row?.periph_cost_per_hour ?? "0") || 0,
+  }
 }
 
 export async function getMonthlyProjection(): Promise<number> {
@@ -115,24 +125,64 @@ export async function get7dDaily(): Promise<{ time: Date; kwh: number }[]> {
     }))
 }
 
-export async function getLast3DaysCost(): Promise<{ date: string; cost: number }[]> {
+function windowTimeToDayLabel(isoTime: string): string {
+  // aggregateWindow _time = end of window (UTC-aligned).
+  // Subtracting 12h lands at mid-window which always falls in the correct local day,
+  // regardless of the local UTC offset — unlike -1ms which breaks near UTC midnight boundaries.
+  const d = new Date(isoTime)
+  d.setHours(d.getHours() - 12)
+  return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })
+}
+
+export async function getLast3DaysCost(): Promise<{ date: string; costPc: number; costPeriph: number }[]> {
+  const now = new Date()
+  const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const stopISO = localMidnight.toISOString()
+
   const csv = await query(`
     from(bucket: "${BUCKET}")
-      |> range(start: -3d)
-      |> filter(fn: (r) => r._measurement == "hardware" and r._field == "cost_per_hour" and r.host == "${HOST}")
-      |> aggregateWindow(every: 1d, fn: sum, createEmpty: true)
+      |> range(start: -2d, stop: ${stopISO})
+      |> filter(fn: (r) => r._measurement == "hardware"
+          and (r._field == "cost_per_hour" or r._field == "periph_cost_per_hour")
+          and r.host == "${HOST}")
+      |> aggregateWindow(every: 1d, fn: sum, createEmpty: false)
       |> map(fn: (r) => ({ r with _value: r._value * 2.0 / 3600.0 }))
+      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+      |> sort(columns: ["_time"], desc: true)
   `)
   return parseCSV(csv)
-    .filter(row => row._time && row._value !== undefined && row._value !== "")
+    .filter(row => row._time && row.cost_per_hour !== undefined && row.cost_per_hour !== "")
+    .map(row => ({
+      date:        windowTimeToDayLabel(row._time),
+      costPc:      parseFloat(row.cost_per_hour ?? "0") || 0,
+      costPeriph:  parseFloat(row.periph_cost_per_hour ?? "0") || 0,
+    }))
+}
+
+export async function getLast31DaysCost(): Promise<{ date: string; costPc: number; costPeriph: number; kwh: number }[]> {
+  const now = new Date()
+  const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const stopISO = localMidnight.toISOString()
+
+  const csv = await query(`
+    from(bucket: "${BUCKET}")
+      |> range(start: -31d, stop: ${stopISO})
+      |> filter(fn: (r) => r._measurement == "hardware"
+          and (r._field == "cost_per_hour" or r._field == "periph_cost_per_hour" or r._field == "wall_watts")
+          and r.host == "${HOST}")
+      |> aggregateWindow(every: 1d, fn: sum, createEmpty: false)
+      |> map(fn: (r) => ({ r with _value: r._value * 2.0 / 3600.0 }))
+      |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+      |> sort(columns: ["_time"], desc: true)
+  `)
+  return parseCSV(csv)
+    .filter(row => row._time && row.cost_per_hour !== undefined && row.cost_per_hour !== "")
     .map(row => {
-      const d = new Date(row._time)
-      // _time marks end of window — subtract 1ms to get the correct day
-      d.setMilliseconds(d.getMilliseconds() - 1)
-      return {
-        date: d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }),
-        cost: parseFloat(row._value ?? "0") || 0,
-      }
+      const costPc     = parseFloat(row.cost_per_hour ?? "0") || 0
+      const costPeriph = parseFloat(row.periph_cost_per_hour ?? "0") || 0
+      // wall_watts sum * 2/3600 = kWh (same factor applied above)
+      const kwh = parseFloat(row.wall_watts ?? "0") || 0
+      return { date: windowTimeToDayLabel(row._time), costPc, costPeriph, kwh }
     })
 }
 
