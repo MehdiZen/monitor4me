@@ -4,7 +4,7 @@ Dashboard de monitoring hardware PC — température, consommation électrique, 
 
 Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 
-![monitor4me dashboard](docs/dashboard.png)
+<img width="1098" height="758" alt="image" src="https://github.com/user-attachments/assets/91628a6b-c901-4043-9db6-fc61890f9ffd" />
 
 ---
 
@@ -44,7 +44,7 @@ Le wizard configure automatiquement le web server de LHM. Si les données n'appa
 
 **Options → Remote Web Server → Run** (port 8085)
 
-![LHM web server](docs/lhm-webserver.png)
+<img width="455" height="444" alt="image" src="https://github.com/user-attachments/assets/fdceba3b-64b5-41e1-aac7-29b3dc7145de" />
 
 ---
 
@@ -88,7 +88,6 @@ monitor4me/
 │       ├── anomaly.ts      Détection anomalies (z-score)
 │       ├── notify.ts       Notifications Windows
 │       └── monitors.ts     Détection écrans WMI
-├── docs/                   Screenshots pour le README
 └── scripts/                Scripts setup/build/release
 ```
 
