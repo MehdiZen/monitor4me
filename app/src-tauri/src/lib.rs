@@ -70,6 +70,7 @@ async fn run_silent_install(
             for p in &[
                 res_dir.join("silent-install.ps1"),
                 res_dir.join("scripts").join("silent-install.ps1"),
+                res_dir.join("resources").join("silent-install.ps1"),
             ] {
                 if p.exists() { script_path = p.clone(); break; }
             }
@@ -79,7 +80,18 @@ async fn run_silent_install(
     if !script_path.exists() {
         let cwd  = std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_default();
         let rdir = app.path().resource_dir().map(|p| p.display().to_string()).unwrap_or_default();
-        return Err(format!("silent-install.ps1 introuvable (cwd={} resource_dir={})", cwd, rdir));
+        let listing = app.path().resource_dir().ok()
+            .and_then(|d| std::fs::read_dir(&d).ok())
+            .map(|entries| entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+                .join(", "))
+            .unwrap_or_else(|| "(vide ou inaccessible)".to_string());
+        return Err(format!(
+            "silent-install.ps1 introuvable\ncwd={}\nresource_dir={}\ncontenu=[{}]",
+            cwd, rdir, listing
+        ));
     }
 
     // 2. Fichier de log — on ecrit le diagnostic directement dedans
