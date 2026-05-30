@@ -71,51 +71,6 @@ Le wizard configure automatiquement le web server de LHM. Si les données n'appa
 
 ---
 
-## Développement (depuis le repo)
-
-### Prérequis
-
-- Windows 10/11
-- Node.js 20+
-- Rust (build Tauri uniquement)
-- LibreHardwareMonitor avec web server activé sur `:8085`
-- InfluxDB 2 sur `:8086`
-
-### Setup
-
-```powershell
-# Depuis la racine du repo
-.\scripts\setup-from-source.ps1
-```
-
-### Publier une release
-
-```powershell
-# 1. Build signé (clé privée dans ~/.monitor4me-signing-key)
-cd app
-.\build-signed.ps1
-
-# 2. Générer latest.json pour l'auto-updater
-cd ..
-.\scripts\generate-latest-json.ps1 -Version "X.Y.Z" -Notes "Description"
-
-# 3. Packager le collecteur
-.\scripts\package-collector.ps1
-
-# 4. Release GitHub
-gh release create vX.Y.Z `
-    "app\src-tauri\target\release\bundle\nsis\monitor4me_X.Y.Z_x64-setup.exe" `
-    "app\src-tauri\target\release\bundle\nsis\monitor4me_X.Y.Z_x64-setup.exe.sig" `
-    "latest.json" "collector-dist.zip" `
-    --title "monitor4me vX.Y.Z" --notes "..."
-
-git push origin master
-```
-
-> Le repo doit être **public** pour que l'auto-updater et les téléchargements fonctionnent sans authentification.
-
----
-
 ## Structure
 
 ```
