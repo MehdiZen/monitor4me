@@ -5,6 +5,13 @@ node_modules/
 dist/
 app/src-tauri/target/
 
+# Binaires et archives de release (leur place est dans GitHub Releases, pas dans le repo)
+*.zip
+*.exe
+*.msi
+*.sig
+latest.json
+
 # Runtime config (may contain local paths / tokens)
 collector/user-config.json
 

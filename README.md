@@ -4,6 +4,8 @@ Dashboard de monitoring hardware PC — température, consommation électrique, 
 
 Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 
+![monitor4me dashboard](docs/dashboard.png)
+
 ---
 
 ## Installation
@@ -35,6 +37,14 @@ Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 > Pas de redémarrage requis. Le dashboard est opérationnel immédiatement après le wizard.
 
 > **Réparer / Réinstaller** : ouvrez les paramètres (⚙) et cliquez **Réparer**.
+
+### Activation manuelle du web server LibreHardwareMonitor
+
+Le wizard configure automatiquement le web server de LHM. Si les données n'apparaissent pas (statut "Reconnecting"), activez-le manuellement :
+
+**Options → Remote Web Server → Run** (port 8085)
+
+![LHM web server](docs/lhm-webserver.png)
 
 ---
 
@@ -123,6 +133,7 @@ monitor4me/
 │       ├── anomaly.ts      Détection anomalies (z-score)
 │       ├── notify.ts       Notifications Windows
 │       └── monitors.ts     Détection écrans WMI
+├── docs/                   Screenshots pour le README
 └── scripts/                Scripts setup/build/release
 ```
 
