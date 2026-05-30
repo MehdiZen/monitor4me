@@ -8,15 +8,7 @@ Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 
 ## Installation
 
-### Prérequis
-
-- [**.NET Desktop Runtime 8**](https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe) — requis par LibreHardwareMonitor
-
-### Étapes
-
-**1.** Installez **.NET Desktop Runtime 8** via le lien ci-dessus si ce n'est pas déjà fait.
-
-**2.** Téléchargez **[`monitor4me_x64-setup.exe`](https://github.com/MehdiZen/monitor4me/releases/latest)** depuis la dernière release.
+**1.** Téléchargez **[`monitor4me_x64-setup.exe`](https://github.com/MehdiZen/monitor4me/releases/latest)** depuis la dernière release.
 
 **3.** Double-cliquez sur le fichier. Windows peut afficher un avertissement "Éditeur inconnu" — cliquez **Informations complémentaires → Exécuter quand même**.
 

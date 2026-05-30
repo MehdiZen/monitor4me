@@ -131,48 +131,9 @@ if (Test-Path $influxExe) {
     } catch { LogErr "Echec InfluxDB : $_" }
 }
 
-# -- 3. .NET Desktop Runtime (requis par LHM) --
-LogStep ".NET Desktop Runtime"
-$dotnetOk = $false
-# Detection : cherche dans le registre (plus fiable que dotnet.exe en contexte eleve)
-$dotnetKeys = @(
-    "HKLM:\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
-    "HKLM:\SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App"
-)
-foreach ($key in $dotnetKeys) {
-    if (Test-Path $key) {
-        $versions = Get-ItemProperty $key -ErrorAction SilentlyContinue
-        if ($versions.PSObject.Properties | Where-Object { $_.Name -match "^[6-9]\." }) {
-            $dotnetOk = $true; break
-        }
-    }
-}
-# Fallback : dotnet CLI
-if (-not $dotnetOk) {
-    try {
-        $r = & "$env:ProgramFiles\dotnet\dotnet.exe" --list-runtimes 2>&1
-        $dotnetOk = ($r | Where-Object { $_ -match "Microsoft\.WindowsDesktop\.App\s+[6-9]\." }) -ne $null
-    } catch {}
-}
-
-if ($dotnetOk) {
-    LogOK ".NET Desktop Runtime deja installe"
-} else {
-    LogInfo "Telechargement .NET Desktop Runtime 8..."
-    $dotnetUrl = "https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe"
-    $dotnetTmp  = "$env:TEMP\dotnet-desktop-runtime.exe"
-    try {
-        Invoke-WebRequest $dotnetUrl -OutFile $dotnetTmp -UseBasicParsing -TimeoutSec 120
-        LogInfo "Installation .NET Desktop Runtime 8 (silencieuse)..."
-        Start-Process $dotnetTmp -ArgumentList "/install /quiet /norestart" -Wait
-        Remove-Item $dotnetTmp -Force -ErrorAction SilentlyContinue
-        LogOK ".NET Desktop Runtime 8 installe"
-    } catch {
-        LogErr "Echec installation .NET : $_"
-    }
-}
-
-# -- 4. LibreHardwareMonitor --
+# -- 3. LibreHardwareMonitor --
+# On utilise la derniere version net472 (v0.9.4) : fonctionne sans dependance .NET
+# Les versions v0.9.5+ ciblent net10.0 et sont incompatibles avec Windows 10 19041
 LogStep "LibreHardwareMonitor"
 $lhmExe = Get-ChildItem $LHM_DIR -Filter "LibreHardwareMonitor.exe" -Recurse `
               -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
@@ -181,20 +142,17 @@ if ($lhmExe) {
     LogOK "LHM deja installe : $lhmExe"
 } else {
     try {
-        LogInfo "Recuperation derniere version GitHub..."
-        $rel   = Invoke-RestMethod `
-            "https://api.github.com/repos/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest" `
-            -TimeoutSec 20 -Headers @{"User-Agent"="monitor4me-install/1.0"}
-        $asset = $rel.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
+        # Derniere version net472 = v0.9.4
+        $lhmUrl = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/download/v0.9.4/LibreHardwareMonitor-net472.zip"
         $lhmZip = "$env:TEMP\lhm.zip"
-        LogInfo "Telechargement $($asset.name)..."
-        Invoke-WebRequest $asset.browser_download_url -OutFile $lhmZip -UseBasicParsing -TimeoutSec 120
+        LogInfo "Telechargement LibreHardwareMonitor v0.9.4 (net472)..."
+        Invoke-WebRequest $lhmUrl -OutFile $lhmZip -UseBasicParsing -TimeoutSec 120
         New-Item -ItemType Directory -Force -Path $LHM_DIR | Out-Null
         Expand-Archive -Path $lhmZip -DestinationPath $LHM_DIR -Force
         Remove-Item $lhmZip -Force
         $lhmExe = Get-ChildItem $LHM_DIR -Filter "LibreHardwareMonitor.exe" -Recurse |
                   Select-Object -First 1 -ExpandProperty FullName
-        if ($lhmExe) { LogOK "LibreHardwareMonitor installe" }
+        if ($lhmExe) { LogOK "LibreHardwareMonitor v0.9.4 installe" }
         else { LogErr "LibreHardwareMonitor.exe introuvable apres extraction" }
     } catch { LogErr "Echec LHM : $_" }
 }
