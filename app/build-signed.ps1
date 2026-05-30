@@ -48,7 +48,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "  Build termine. Verifiez la presence des .sig dans :" -ForegroundColor Green
     Write-Host "  src-tauri\target\release\bundle\nsis\" -ForegroundColor Green
     Write-Host ""
-    Write-Host "  Etape suivante : scripts\generate-latest-json.ps1 -Version '1.0.0'" -ForegroundColor Cyan
+    $ver = (Get-Content "$PSScriptRoot\src-tauri\tauri.conf.json" | ConvertFrom-Json).version
+    Write-Host "  Etape suivante : scripts\generate-latest-json.ps1 -Version '$ver'" -ForegroundColor Cyan
 } else {
     Write-Error "Build echoue (code $LASTEXITCODE)"
 }
