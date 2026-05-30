@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
+import { listen } from "@tauri-apps/api/event"
 import { store } from "./store"
 import { startWS, onMessage, sendConfig, type CollectorConfig } from "./ws-client"
 import { getTodayCost, getMonthlyProjection, get24hHourly, get7dDaily, getAnomalyHistory, getLast3DaysCost, getLast31DaysCost, setInfluxHost } from "./influx"
