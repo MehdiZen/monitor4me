@@ -12,10 +12,14 @@ $ProgressPreference    = "SilentlyContinue"
 $DEPS_DIR      = "$env:APPDATA\monitor4me"
 $COLLECTOR_DIR = "$DEPS_DIR\collector"
 $INFLUX_DIR    = "$env:ProgramFiles\InfluxDB"
+$INFLUX_DATA   = "C:\ProgramData\monitor4me\influxdb"   # repertoire commun user+SYSTEM
 $LHM_DIR       = "$env:ProgramFiles\LibreHardwareMonitor"
 $INFLUX_URL    = "http://localhost:8086"
 $INFLUX_VER    = "2.7.11"
 $GITHUB_REPO   = "MehdiZen/monitor4me"
+
+# Arguments influxd pour pointer vers le repertoire de donnees commun
+$INFLUX_ARGS   = "--bolt-path `"$INFLUX_DATA\influxd.bolt`" --engine-path `"$INFLUX_DATA\engine`""
 
 function LogLine {
     param([string]$line)
@@ -192,25 +196,46 @@ if (Test-Path $influxExe) {
         $influxRunning = ($h.status -eq "pass")
     } catch {}
 
-    $tmpProc     = $null
-    $influxReady = $influxRunning
-    if (-not $influxRunning) {
-        LogInfo "Demarrage temporaire InfluxDB..."
-        $tmpProc = Start-Process -FilePath $influxExe -PassThru -WindowStyle Hidden
+    # Demarre influxd avec le repertoire de donnees commun (user + SYSTEM)
+    function Start-InfluxTemp {
+        New-Item -ItemType Directory -Force -Path $INFLUX_DATA | Out-Null
+        $p = Start-Process -FilePath $influxExe -ArgumentList $INFLUX_ARGS `
+                 -PassThru -WindowStyle Hidden
         for ($i = 0; $i -lt 20; $i++) {
             Start-Sleep 3
             try {
                 $h = Invoke-RestMethod "$INFLUX_URL/health" -TimeoutSec 3
-                if ($h.status -eq "pass") { $influxReady = $true; break }
+                if ($h.status -eq "pass") { return $p }
             } catch {}
         }
+        return $p
+    }
+
+    # Configure depuis zero (setup POST)
+    function Setup-InfluxFresh {
+        $body = @{
+            username="admin"; password=$AdminPass
+            org="home"; bucket="pc-monitor"
+            retentionPeriodSeconds=2592000
+        } | ConvertTo-Json
+        $r = Invoke-RestMethod "$INFLUX_URL/api/v2/setup" `
+                 -Method POST -Body $body -ContentType "application/json" -TimeoutSec 15
+        return $r.auth.token
+    }
+
+    $tmpProc     = $null
+    $influxReady = $influxRunning
+    if (-not $influxRunning) {
+        LogInfo "Demarrage temporaire InfluxDB..."
+        $tmpProc = Start-InfluxTemp
+        try { $influxReady = ((Invoke-RestMethod "$INFLUX_URL/health" -TimeoutSec 3).status -eq "pass") } catch {}
     }
 
     if ($influxReady) {
         $token      = $null
         $tokenCache = "$DEPS_DIR\influx-token.txt"
 
-        # 0. Token cache : si un token valide existe deja, pas besoin de re-auth
+        # 0. Token cache valide ?
         if (Test-Path $tokenCache) {
             $cached = (Get-Content $tokenCache -Raw -ErrorAction SilentlyContinue).Trim()
             if ($cached) {
@@ -218,69 +243,80 @@ if (Test-Path $influxExe) {
                     Invoke-RestMethod "$INFLUX_URL/api/v2/me" `
                         -Headers @{Authorization="Token $cached"} -TimeoutSec 5 | Out-Null
                     $token = $cached
-                    LogOK "Token cache valide, rien a faire"
+                    LogOK "Token cache valide"
                 } catch { $token = $null }
             }
         }
 
         if (-not $token) {
-            try {
-                $status = Invoke-RestMethod "$INFLUX_URL/api/v2/setup" -Method GET -TimeoutSec 5
+            $status = $null
+            try { $status = Invoke-RestMethod "$INFLUX_URL/api/v2/setup" -Method GET -TimeoutSec 5 } catch {}
 
-                if ($status.allowed -eq $true) {
-                    # Installation fraiche
-                    $body = @{
-                        username="admin"; password=$AdminPass
-                        org="home"; bucket="pc-monitor"
-                        retentionPeriodSeconds=2592000
-                    } | ConvertTo-Json
-                    $result = Invoke-RestMethod "$INFLUX_URL/api/v2/setup" `
-                        -Method POST -Body $body -ContentType "application/json"
-                    $token = $result.auth.token
+            if ($status.allowed -eq $true) {
+                # Installation fraiche
+                try {
+                    $token = Setup-InfluxFresh
                     LogOK "InfluxDB configure (org:home, bucket:pc-monitor)"
-                } else {
-                    # Deja configure — essaie plusieurs mots de passe possibles
-                    # (installation anterieure avec mdp vide, ou autre valeur)
-                    $candidates = @($AdminPass, "", "monitor4me-local") | Select-Object -Unique
-                    foreach ($pwd in $candidates) {
-                        try {
-                            $cred   = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("admin:$pwd"))
-                            $signin = Invoke-WebRequest "$INFLUX_URL/api/v2/signin" `
-                                -Method POST -Headers @{Authorization="Basic $cred"} `
-                                -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
-                            $cookie  = ($signin.Headers["Set-Cookie"] -split ";")[0]
-                            $authHdr = @{Cookie=$cookie}
+                } catch { LogErr "Setup InfluxDB : $_" }
+            } else {
+                # Deja configure — essaie plusieurs mots de passe
+                $candidates = @($AdminPass, "", "monitor4me-local") | Select-Object -Unique
+                foreach ($pwd in $candidates) {
+                    try {
+                        $cred   = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("admin:$pwd"))
+                        $signin = Invoke-WebRequest "$INFLUX_URL/api/v2/signin" `
+                            -Method POST -Headers @{Authorization="Basic $cred"} `
+                            -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                        $cookie  = ($signin.Headers["Set-Cookie"] -split ";")[0]
+                        $authHdr = @{Cookie=$cookie}
 
-                            $orgs  = Invoke-RestMethod "$INFLUX_URL/api/v2/orgs?org=home" -Headers $authHdr
-                            $orgId = $orgs.orgs[0].id
-                            $auths = Invoke-RestMethod "$INFLUX_URL/api/v2/authorizations?org=home" -Headers $authHdr
-                            $ex    = $auths.authorizations |
-                                     Where-Object { $_.description -eq "pc-monitor-collector" } |
-                                     Select-Object -First 1
+                        $orgs  = Invoke-RestMethod "$INFLUX_URL/api/v2/orgs?org=home" -Headers $authHdr
+                        $orgId = $orgs.orgs[0].id
+                        $auths = Invoke-RestMethod "$INFLUX_URL/api/v2/authorizations?org=home" -Headers $authHdr
+                        $ex    = $auths.authorizations |
+                                 Where-Object { $_.description -eq "pc-monitor-collector" } |
+                                 Select-Object -First 1
 
-                            if ($ex) {
-                                $token = $ex.token; LogOK "Token existant recupere (pwd=$pwd)"
-                            } else {
-                                $bkts  = Invoke-RestMethod "$INFLUX_URL/api/v2/buckets?org=home" -Headers $authHdr
-                                $bktId = ($bkts.buckets | Where-Object { $_.name -eq "pc-monitor" } | Select-Object -First 1).id
-                                $tBody = @{
-                                    orgID=$orgId; description="pc-monitor-collector"
-                                    permissions=@(
-                                        @{action="read";  resource=@{type="buckets";orgID=$orgId;id=$bktId}},
-                                        @{action="write"; resource=@{type="buckets";orgID=$orgId;id=$bktId}}
-                                    )
-                                } | ConvertTo-Json -Depth 5
-                                $auth  = Invoke-RestMethod "$INFLUX_URL/api/v2/authorizations" `
-                                    -Method POST -Body $tBody `
-                                    -Headers @{Cookie=$cookie; "Content-Type"="application/json"}
-                                $token = $auth.token; LogOK "Nouveau token cree"
-                            }
-                            break  # succes — sort de la boucle
-                        } catch { continue }  # essaie le mot de passe suivant
-                    }
-                    if (-not $token) { LogErr "Aucun mot de passe n'a fonctionne pour InfluxDB" }
+                        if ($ex) {
+                            $token = $ex.token; LogOK "Token existant recupere"
+                        } else {
+                            $bkts  = Invoke-RestMethod "$INFLUX_URL/api/v2/buckets?org=home" -Headers $authHdr
+                            $bktId = ($bkts.buckets | Where-Object { $_.name -eq "pc-monitor" } | Select-Object -First 1).id
+                            $tBody = @{
+                                orgID=$orgId; description="pc-monitor-collector"
+                                permissions=@(
+                                    @{action="read";  resource=@{type="buckets";orgID=$orgId;id=$bktId}},
+                                    @{action="write"; resource=@{type="buckets";orgID=$orgId;id=$bktId}}
+                                )
+                            } | ConvertTo-Json -Depth 5
+                            $auth  = Invoke-RestMethod "$INFLUX_URL/api/v2/authorizations" `
+                                -Method POST -Body $tBody `
+                                -Headers @{Cookie=$cookie; "Content-Type"="application/json"}
+                            $token = $auth.token; LogOK "Nouveau token cree"
+                        }
+                        break
+                    } catch { continue }
                 }
-            } catch { LogErr "Config InfluxDB : $_" }
+
+                if (-not $token) {
+                    # Toujours bloque : donnees incompatibles dans $INFLUX_DATA
+                    # Reset complet : arret, suppression, reconfiguration
+                    LogInfo "Reset donnees InfluxDB ($INFLUX_DATA)..."
+                    if ($tmpProc) { Stop-Process -Id $tmpProc.Id -Force -ErrorAction SilentlyContinue; Start-Sleep 2 }
+                    Get-Process influxd -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+                    Start-Sleep 2
+                    Remove-Item $INFLUX_DATA -Recurse -Force -ErrorAction SilentlyContinue
+                    $tmpProc = Start-InfluxTemp
+                    $readyAfterReset = $false
+                    try { $readyAfterReset = ((Invoke-RestMethod "$INFLUX_URL/health" -TimeoutSec 3).status -eq "pass") } catch {}
+                    if ($readyAfterReset) {
+                        try {
+                            $token = Setup-InfluxFresh
+                            LogOK "InfluxDB reconfigure apres reset"
+                        } catch { LogErr "Reconfiguration InfluxDB : $_" }
+                    } else { LogErr "InfluxDB ne repond plus apres reset" }
+                }
+            }
         }
 
         if ($token) {
@@ -290,7 +326,7 @@ if (Test-Path $influxExe) {
             Set-Content $tokenCache $token -Encoding UTF8 -NoNewline
             LogOK "INFLUX_TOKEN sauvegarde"
         }
-    } else { LogWarn "InfluxDB ne repond pas apres 60s" }
+    } else { LogWarn "InfluxDB ne repond pas" }
 
     if ($tmpProc) { Stop-Process -Id $tmpProc.Id -ErrorAction SilentlyContinue }
 }
@@ -315,7 +351,7 @@ try {
 
     if (Test-Path $influxExe) {
         $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit $noLimit -RestartCount 5 -RestartInterval $restart1 -StartWhenAvailable
-        RegTask "PC-Monitor-InfluxDB" (New-ScheduledTaskAction -Execute $influxExe -WorkingDirectory (Split-Path $influxExe)) $atLogon $svcPrin $s "InfluxDB 2.x pour monitor4me"
+        RegTask "PC-Monitor-InfluxDB" (New-ScheduledTaskAction -Execute $influxExe -Argument $INFLUX_ARGS -WorkingDirectory (Split-Path $influxExe)) $atLogon $svcPrin $s "InfluxDB 2.x pour monitor4me"
     }
 
     if ($lhmExe) {
