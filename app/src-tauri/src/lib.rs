@@ -49,7 +49,11 @@ async fn run_silent_install(
     tarif_kwh: f64,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    // 1. Localiser silent-install.ps1 (mode dev ou release)
+    // Diagnostic immediat depuis Rust — si cette ligne apparait dans le log,
+    // l'IPC Tauri fonctionne. Si elle n'apparait pas, le probleme est cote frontend.
+    let _ = app.emit("setup-log", "STEP: Demarrage de l'installation".to_string());
+
+    // 1. Localiser silent-install.ps1
     let mut script_path = std::env::current_dir()
         .unwrap_or_default()
         .join("scripts")
@@ -57,42 +61,54 @@ async fn run_silent_install(
 
     if !script_path.exists() {
         if let Ok(res_dir) = app.path().resource_dir() {
-            let candidates = vec![
+            for p in &[
                 res_dir.join("silent-install.ps1"),
                 res_dir.join("scripts").join("silent-install.ps1"),
-                res_dir.join("resources").join("silent-install.ps1"),
-            ];
-            for p in &candidates {
-                if p.exists() {
-                    script_path = p.clone();
-                    break;
-                }
+            ] {
+                if p.exists() { script_path = p.clone(); break; }
             }
         }
     }
 
     if !script_path.exists() {
-        // Inclure les chemins cherches pour faciliter le diagnostic
         let cwd  = std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_default();
         let rdir = app.path().resource_dir().map(|p| p.display().to_string()).unwrap_or_default();
-        return Err(format!(
-            "silent-install.ps1 introuvable (cwd={} resource_dir={})", cwd, rdir
-        ));
+        return Err(format!("silent-install.ps1 introuvable (cwd={} resource_dir={})", cwd, rdir));
     }
 
-    // 2. Fichier de log temporaire pour IPC avec le processus eleve
+    // 2. Fichier de log
     let log_file = std::env::temp_dir().join("monitor4me-setup.log");
     std::fs::write(&log_file, "").map_err(|e| e.to_string())?;
 
     let script_str = script_path.to_string_lossy().into_owned();
     let log_str    = log_file.to_string_lossy().into_owned();
 
-    // 3. Ecrire un launcher .ps1 sur disque pour eviter l'enfer du quoting inline.
-    //    Le launcher s'execute en tant qu'administrateur (eleve par le wrapper ci-dessous).
-    //    Il utilise l'operateur & pour appeler le script principal -- pas de -ArgumentList.
+    let _ = app.emit("setup-log", format!("INFO: Script = {}", script_str));
+    let _ = app.emit("setup-log", format!("INFO: Log    = {}", log_str));
+
+    // 3. Launcher auto-elevant.
+    //    - Verifie si deja admin -> execute directement
+    //    - Sinon -> se relance lui-meme avec Start-Process -Verb RunAs
+    //    - Plus de wrapper intermediaire
+    //    - $ErrorActionPreference = Continue pour voir les erreurs
     let launcher_content = format!(
-        "$ErrorActionPreference = 'SilentlyContinue'\r\n\
-         Add-Content -Path '{}' -Value 'STEP: Elevation obtenue, lancement du script' -Encoding UTF8\r\n\
+        "$ErrorActionPreference = 'Continue'\r\n\
+         $log = '{}'\r\n\
+         $isAdmin = ([Security.Principal.WindowsPrincipal]\
+           [Security.Principal.WindowsIdentity]::GetCurrent()\
+         ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)\r\n\
+         Add-Content $log ('INFO: isAdmin=' + $isAdmin) -Encoding UTF8\r\n\
+         if (-not $isAdmin) {{\r\n\
+           Add-Content $log 'STEP: Demande elevation UAC' -Encoding UTF8\r\n\
+           try {{\r\n\
+             Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait `\r\n\
+               -ArgumentList ('-ExecutionPolicy Bypass -NonInteractive -File \"' + $PSCommandPath + '\"')\r\n\
+           }} catch {{\r\n\
+             Add-Content $log ('ERR: Elevation echouee - ' + $_.Exception.Message) -Encoding UTF8\r\n\
+           }}\r\n\
+           exit\r\n\
+         }}\r\n\
+         Add-Content $log 'STEP: Elevation obtenue, lancement du script' -Encoding UTF8\r\n\
          & '{}' -AdminPass '{}' -TarifKwh {} -LogFile '{}'\r\n",
         log_str.replace('\'', "''"),
         script_str.replace('\'', "''"),
@@ -106,34 +122,17 @@ async fn run_silent_install(
         .map_err(|e| format!("Echec creation launcher : {}", e))?;
     let launcher_str = launcher_path.to_string_lossy().into_owned();
 
-    // 4. Ecrire le wrapper sur disque aussi (evite tout parsing -Command inline).
-    //    Le wrapper est non-eleve : ecrit dans le log puis demande l'elevation UAC.
-    let wrapper_content = format!(
-        "$ErrorActionPreference = 'SilentlyContinue'\r\n\
-         Add-Content -Path '{}' -Value 'STEP: Demande elevation UAC' -Encoding UTF8\r\n\
-         try {{\r\n\
-           Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait `\r\n\
-             -ArgumentList '-ExecutionPolicy Bypass -NonInteractive -File \"{}\"'\r\n\
-           Add-Content -Path '{}' -Value 'STEP: Wrapper termine' -Encoding UTF8\r\n\
-         }} catch {{\r\n\
-           Add-Content -Path '{}' -Value ('ERR: Elevation echouee - ' + $_.Exception.Message) -Encoding UTF8\r\n\
-         }}\r\n",
-        log_str.replace('\'', "''"),
-        launcher_str.replace('"', "\"\""),
-        log_str.replace('\'', "''"),
-        log_str.replace('\'', "''"),
-    );
+    let _ = app.emit("setup-log", "INFO: Lancement PowerShell...".to_string());
 
-    let wrapper_path = std::env::temp_dir().join("monitor4me-wrapper.ps1");
-    std::fs::write(&wrapper_path, wrapper_content.as_bytes())
-        .map_err(|e| format!("Echec creation wrapper : {}", e))?;
-    let wrapper_str = wrapper_path.to_string_lossy().into_owned();
-
+    // 4. Lancer le launcher directement — il gere sa propre elevation
     let mut child = Command::new("powershell")
         .creation_flags(CREATE_NO_WINDOW)
-        .args(&["-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", &wrapper_str])
+        .args(&["-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
+                "-NonInteractive", "-File", &launcher_str])
         .spawn()
-        .map_err(|e| format!("Echec lancement wrapper : {}", e))?;
+        .map_err(|e| format!("Echec spawn PowerShell : {}", e))?;
+
+    let _ = app.emit("setup-log", "INFO: PowerShell demarre".to_string());
 
     // 5. Thread de polling : lit le log toutes les 400ms et emet les evenements
     let handle   = app.clone();
@@ -155,7 +154,7 @@ async fn run_silent_install(
         }
     });
 
-    // 6. Attendre la fin du wrapper (qui attend lui-meme le processus eleve)
+    // 6. Attendre la fin du launcher (qui attend l'eventuel processus eleve via -Wait)
     child.wait().map_err(|e| format!("Attente echouee : {}", e))?;
 
     Ok(())
