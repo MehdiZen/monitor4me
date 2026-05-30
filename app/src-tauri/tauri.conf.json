@@ -1,6 +1,6 @@
 {
   "productName": "monitor4me",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "identifier": "dev.monitor4me.dashboard",
   "build": {
     "frontendDist": "../dist",

@@ -158,6 +158,51 @@ if ($lhmExe) {
     } catch { LogErr "Echec LHM : $_" }
 }
 
+# Active le web server LHM sur :8085 (ecrit le fichier config avant le premier lancement)
+$lhmCfgDir = "$env:APPDATA\LibreHardwareMonitor"
+$lhmCfg    = "$lhmCfgDir\LibreHardwareMonitor.config"
+if (-not (Test-Path $lhmCfg)) {
+    New-Item -ItemType Directory -Force -Path $lhmCfgDir | Out-Null
+    @'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <userSettings>
+    <LibreHardwareMonitor.Properties.Settings>
+      <setting name="runWebServer" serializeAs="String">
+        <value>True</value>
+      </setting>
+      <setting name="listenerPort" serializeAs="String">
+        <value>8085</value>
+      </setting>
+      <setting name="startMinimized" serializeAs="String">
+        <value>True</value>
+      </setting>
+    </LibreHardwareMonitor.Properties.Settings>
+  </userSettings>
+</configuration>
+'@ | Out-File $lhmCfg -Encoding UTF8 -Force
+    LogOK "LHM web server configure (:8085)"
+} else {
+    # Fichier existant : s'assure que runWebServer=True et port=8085
+    [xml]$xml = Get-Content $lhmCfg
+    $ns = $xml.configuration.userSettings.'LibreHardwareMonitor.Properties.Settings'
+    function Set-LhmSetting($name, $val) {
+        $node = $ns.setting | Where-Object { $_.name -eq $name }
+        if ($node) { $node.value = $val }
+        else {
+            $s = $xml.CreateElement("setting")
+            $s.SetAttribute("name", $name); $s.SetAttribute("serializeAs", "String")
+            $v = $xml.CreateElement("value"); $v.InnerText = $val
+            $s.AppendChild($v) | Out-Null
+            $ns.AppendChild($s) | Out-Null
+        }
+    }
+    Set-LhmSetting "runWebServer" "True"
+    Set-LhmSetting "listenerPort" "8085"
+    $xml.Save($lhmCfg)
+    LogOK "LHM web server verifie (:8085)"
+}
+
 # -- 4. Collecteur --
 LogStep "Collecteur de metriques"
 $collectorDist = "$COLLECTOR_DIR\dist\index.js"
