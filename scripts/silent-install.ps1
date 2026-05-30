@@ -199,12 +199,15 @@ if ($lhmExe) {
     } catch { LogErr "Echec LHM : $_" }
 }
 
-# Active le web server LHM sur :8085 (ecrit le fichier config avant le premier lancement)
+# Reservation HTTP pour que LHM puisse ecouter sur :8085 sans echec silencieux
+netsh http add urlacl url=http://+:8085/ user=Everyone 2>&1 | Out-Null
+LogOK "URL ACL :8085 reservee"
+
+# Config LHM : web server :8085 actif, demarrage minimise
+# Le fichier est toujours ecrase pour garantir les bons parametres
 $lhmCfgDir = "$env:APPDATA\LibreHardwareMonitor"
-$lhmCfg    = "$lhmCfgDir\LibreHardwareMonitor.config"
-if (-not (Test-Path $lhmCfg)) {
-    New-Item -ItemType Directory -Force -Path $lhmCfgDir | Out-Null
-    @'
+New-Item -ItemType Directory -Force -Path $lhmCfgDir | Out-Null
+@'
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <userSettings>
@@ -221,28 +224,8 @@ if (-not (Test-Path $lhmCfg)) {
     </LibreHardwareMonitor.Properties.Settings>
   </userSettings>
 </configuration>
-'@ | Out-File $lhmCfg -Encoding UTF8 -Force
-    LogOK "LHM web server configure (:8085)"
-} else {
-    # Fichier existant : s'assure que runWebServer=True et port=8085
-    [xml]$xml = Get-Content $lhmCfg
-    $ns = $xml.configuration.userSettings.'LibreHardwareMonitor.Properties.Settings'
-    function Set-LhmSetting($name, $val) {
-        $node = $ns.setting | Where-Object { $_.name -eq $name }
-        if ($node) { $node.value = $val }
-        else {
-            $s = $xml.CreateElement("setting")
-            $s.SetAttribute("name", $name); $s.SetAttribute("serializeAs", "String")
-            $v = $xml.CreateElement("value"); $v.InnerText = $val
-            $s.AppendChild($v) | Out-Null
-            $ns.AppendChild($s) | Out-Null
-        }
-    }
-    Set-LhmSetting "runWebServer" "True"
-    Set-LhmSetting "listenerPort" "8085"
-    $xml.Save($lhmCfg)
-    LogOK "LHM web server verifie (:8085)"
-}
+'@ | Out-File "$lhmCfgDir\LibreHardwareMonitor.config" -Encoding UTF8 -Force
+LogOK "LHM web server configure (:8085)"
 
 # -- 4. Collecteur --
 LogStep "Collecteur de metriques"
@@ -441,9 +424,8 @@ try {
     }
 
     if ($lhmExe) {
-        $lhmCmd = "-NonInteractive -WindowStyle Hidden -Command `"Start-Process '$lhmExe' -WindowStyle Minimized`""
-        $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -StartWhenAvailable
-        RegTask "PC-Monitor-LHM" (New-ScheduledTaskAction -Execute "powershell.exe" -Argument $lhmCmd) $atLogon $userPrin $s "LibreHardwareMonitor REST :8085"
+        $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit $noLimit -RestartCount 5 -RestartInterval $restart1 -StartWhenAvailable
+        RegTask "PC-Monitor-LHM" (New-ScheduledTaskAction -Execute $lhmExe -WorkingDirectory (Split-Path $lhmExe)) $atLogon $userPrin $s "LibreHardwareMonitor REST :8085"
     }
 
     $nodePath = Get-Command "node" -ErrorAction SilentlyContinue
