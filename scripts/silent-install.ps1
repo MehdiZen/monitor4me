@@ -111,17 +111,19 @@ if (Test-Path $influxExe) {
         if (Test-Path $extractTmp) { Remove-Item $extractTmp -Recurse -Force }
         LogInfo "Extraction..."
         Expand-Archive -Path $zipTmp -DestinationPath $extractTmp -Force
-        $inner = Get-ChildItem $extractTmp | Select-Object -First 1
+        $allFiles = Get-ChildItem $extractTmp -Recurse -File | Select-Object -First 8
+        LogInfo "ZIP contenu : $($allFiles.Name -join ', ')"
+        $influxBin = $allFiles | Where-Object { $_.Name -eq 'influxd.exe' } | Select-Object -First 1
+        if (-not $influxBin) { throw "influxd.exe absent du ZIP" }
         New-Item -ItemType Directory -Force -Path $INFLUX_DIR | Out-Null
-        if ($inner -and $inner.PSIsContainer) {
-            Copy-Item -Path "$($inner.FullName)\*" -Destination $INFLUX_DIR -Recurse -Force
-        } else {
-            Copy-Item -Path "$extractTmp\*" -Destination $INFLUX_DIR -Recurse -Force
+        Copy-Item -Path $influxBin.FullName -Destination $INFLUX_DIR -Force
+        $allFiles | Where-Object { $_.Name -ne 'influxd.exe' } | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination $INFLUX_DIR -Force
         }
         Remove-Item $extractTmp -Recurse -Force
         Remove-Item $zipTmp -Force
         if (Test-Path $influxExe) { LogOK "InfluxDB $INFLUX_VER installe" }
-        else { LogErr "influxd.exe introuvable apres extraction" }
+        else { LogErr "influxd.exe introuvable dans $INFLUX_DIR" }
     } catch { LogErr "Echec InfluxDB : $_" }
 }
 
@@ -141,7 +143,7 @@ if ($lhmExe) {
         $asset = $rel.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
         $lhmZip = "$env:TEMP\lhm.zip"
         LogInfo "Telechargement $($asset.name)..."
-        Invoke-WebRequest $asset.browser_download_url -OutFile $lhmZip -UseBasicParsing
+        Invoke-WebRequest $asset.browser_download_url -OutFile $lhmZip -UseBasicParsing -TimeoutSec 120
         New-Item -ItemType Directory -Force -Path $LHM_DIR | Out-Null
         Expand-Archive -Path $lhmZip -DestinationPath $LHM_DIR -Force
         Remove-Item $lhmZip -Force
@@ -168,7 +170,7 @@ if (Test-Path $collectorDist) {
         if ($prebuilt) {
             LogInfo "Telechargement collecteur pre-compile..."
             $zipTmp = "$env:TEMP\collector-dist.zip"
-            Invoke-WebRequest $prebuilt.browser_download_url -OutFile $zipTmp -UseBasicParsing
+            Invoke-WebRequest $prebuilt.browser_download_url -OutFile $zipTmp -UseBasicParsing -TimeoutSec 120
             if (Test-Path $COLLECTOR_DIR) { Remove-Item $COLLECTOR_DIR -Recurse -Force }
             New-Item -ItemType Directory -Force $COLLECTOR_DIR | Out-Null
             Expand-Archive -Path $zipTmp -DestinationPath $COLLECTOR_DIR -Force
