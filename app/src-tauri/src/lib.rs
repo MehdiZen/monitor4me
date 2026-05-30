@@ -44,14 +44,20 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn get_install_log() -> String {
+    let log_file = std::env::temp_dir().join("monitor4me-setup.log");
+    std::fs::read_to_string(log_file).unwrap_or_default()
+}
+
+#[tauri::command]
 async fn run_silent_install(
     admin_pass: String,
     tarif_kwh: f64,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    // Diagnostic immediat depuis Rust — si cette ligne apparait dans le log,
-    // l'IPC Tauri fonctionne. Si elle n'apparait pas, le probleme est cote frontend.
-    let _ = app.emit("setup-log", "STEP: Demarrage de l'installation".to_string());
+    // Diagnostic immediat ecrit dans le fichier (pas d'event) :
+    // si le frontend poll get_install_log et voit cette ligne,
+    // on sait que l'invoke atteint Rust et que les fichiers sont accessibles.
 
     // 1. Localiser silent-install.ps1
     let mut script_path = std::env::current_dir()
@@ -76,15 +82,16 @@ async fn run_silent_install(
         return Err(format!("silent-install.ps1 introuvable (cwd={} resource_dir={})", cwd, rdir));
     }
 
-    // 2. Fichier de log
+    // 2. Fichier de log — on ecrit le diagnostic directement dedans
     let log_file = std::env::temp_dir().join("monitor4me-setup.log");
-    std::fs::write(&log_file, "").map_err(|e| e.to_string())?;
-
     let script_str = script_path.to_string_lossy().into_owned();
-    let log_str    = log_file.to_string_lossy().into_owned();
+    let init_log = format!(
+        "STEP: Demarrage de l installation\r\nINFO: Script = {}\r\n",
+        script_str
+    );
+    std::fs::write(&log_file, init_log.as_bytes()).map_err(|e| e.to_string())?;
 
-    let _ = app.emit("setup-log", format!("INFO: Script = {}", script_str));
-    let _ = app.emit("setup-log", format!("INFO: Log    = {}", log_str));
+    let log_str = log_file.to_string_lossy().into_owned();
 
     // 3. Launcher auto-elevant.
     //    - Verifie si deja admin -> execute directement
@@ -122,9 +129,8 @@ async fn run_silent_install(
         .map_err(|e| format!("Echec creation launcher : {}", e))?;
     let launcher_str = launcher_path.to_string_lossy().into_owned();
 
-    let _ = app.emit("setup-log", "INFO: Lancement PowerShell...".to_string());
-
     // 4. Lancer le launcher directement — il gere sa propre elevation
+    //    Le frontend poll get_install_log() toutes les 500ms pour afficher la progression
     let mut child = Command::new("powershell")
         .creation_flags(CREATE_NO_WINDOW)
         .args(&["-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
@@ -132,29 +138,7 @@ async fn run_silent_install(
         .spawn()
         .map_err(|e| format!("Echec spawn PowerShell : {}", e))?;
 
-    let _ = app.emit("setup-log", "INFO: PowerShell demarre".to_string());
-
-    // 5. Thread de polling : lit le log toutes les 400ms et emet les evenements
-    let handle   = app.clone();
-    let log_path = log_file.clone();
-    std::thread::spawn(move || {
-        let mut last_line = 0usize;
-        loop {
-            std::thread::sleep(std::time::Duration::from_millis(400));
-            if let Ok(content) = std::fs::read_to_string(&log_path) {
-                let lines: Vec<&str> = content.lines().collect();
-                for line in lines.iter().skip(last_line) {
-                    let _ = handle.emit("setup-log", line.to_string());
-                }
-                last_line = lines.len();
-                if content.contains("INSTALLATION_SUCCESS") || content.contains("ERR:") {
-                    break;
-                }
-            }
-        }
-    });
-
-    // 6. Attendre la fin du launcher (qui attend l'eventuel processus eleve via -Wait)
+    // 5. Attendre la fin du launcher (qui attend l'eventuel processus eleve via -Wait)
     child.wait().map_err(|e| format!("Attente echouee : {}", e))?;
 
     Ok(())
@@ -163,7 +147,8 @@ async fn run_silent_install(
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            get_influx_token, minimize_win, maximize_win, hide_win, install_update, run_silent_install
+            get_influx_token, minimize_win, maximize_win, hide_win,
+            install_update, run_silent_install, get_install_log
         ])
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
