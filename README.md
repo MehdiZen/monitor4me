@@ -8,17 +8,25 @@ Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 
 ## Installation
 
-**1.** Téléchargez **[`monitor4me_x64-setup.exe`](https://github.com/MehdiZen/monitor4me/releases/latest)** depuis la dernière release.
+### Prérequis
 
-**2.** Double-cliquez sur le fichier. Windows peut afficher un avertissement "Éditeur inconnu" — cliquez **Informations complémentaires → Exécuter quand même**.
+- [**.NET Desktop Runtime 8**](https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe) — requis par LibreHardwareMonitor
 
-**3.** L'app s'installe en 30 secondes. Au premier lancement, un **Setup Wizard** s'ouvre automatiquement :
+### Étapes
+
+**1.** Installez **.NET Desktop Runtime 8** via le lien ci-dessus si ce n'est pas déjà fait.
+
+**2.** Téléchargez **[`monitor4me_x64-setup.exe`](https://github.com/MehdiZen/monitor4me/releases/latest)** depuis la dernière release.
+
+**3.** Double-cliquez sur le fichier. Windows peut afficher un avertissement "Éditeur inconnu" — cliquez **Informations complémentaires → Exécuter quand même**.
+
+**4.** L'app s'installe en 30 secondes. Au premier lancement, un **Setup Wizard** s'ouvre automatiquement :
    - Entrez votre tarif électrique (€/kWh)
    - Cliquez **Lancer l'installation**
    - Acceptez la demande d'élévation (UAC)
-   - Node.js, InfluxDB, LibreHardwareMonitor et le collecteur s'installent automatiquement
+   - Node.js, InfluxDB, LibreHardwareMonitor et le collecteur s'installent et démarrent automatiquement
 
-**4.** Le dashboard s'ouvre. Les métriques apparaissent en temps réel.
+**5.** Le dashboard s'ouvre. Les métriques apparaissent en temps réel.
 
 > **Réparer / Réinstaller** : ouvrez les paramètres (⚙) et cliquez **Réparer**.
 
