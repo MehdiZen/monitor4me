@@ -8,17 +8,31 @@ Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 
 ## Installation
 
+### Prérequis système
+
+- Windows 10 (build 1903+) ou Windows 11, x64
+- Connexion internet (le wizard télécharge les dépendances)
+
+### Étapes
+
 **1.** Téléchargez **[`monitor4me_x64-setup.exe`](https://github.com/MehdiZen/monitor4me/releases/latest)** depuis la dernière release.
 
-**3.** Double-cliquez sur le fichier. Windows peut afficher un avertissement "Éditeur inconnu" — cliquez **Informations complémentaires → Exécuter quand même**.
+**2.** Double-cliquez sur le fichier. Windows peut afficher un avertissement "Éditeur inconnu" — cliquez **Informations complémentaires → Exécuter quand même**.
 
-**4.** L'app s'installe en 30 secondes. Au premier lancement, un **Setup Wizard** s'ouvre automatiquement :
-   - Entrez votre tarif électrique (€/kWh)
-   - Cliquez **Lancer l'installation**
-   - Acceptez la demande d'élévation (UAC)
-   - Node.js, InfluxDB, LibreHardwareMonitor et le collecteur s'installent et démarrent automatiquement
+**3.** Au premier lancement, le **Setup Wizard** s'ouvre automatiquement. Entrez votre tarif électrique (€/kWh) et cliquez **Lancer l'installation**.
 
-**5.** Le dashboard s'ouvre. Les métriques apparaissent en temps réel.
+**4.** Acceptez la demande d'élévation (UAC) — nécessaire pour installer les services système.
+
+**5.** Le wizard installe et configure automatiquement :
+   - **.NET Desktop Runtime 10** — requis par LibreHardwareMonitor
+   - **InfluxDB 2.7** — base de données time-series locale (port 8086)
+   - **LibreHardwareMonitor** — lecture des capteurs hardware (port 8085)
+   - **Node.js LTS** — runtime du collecteur
+   - **Collecteur de métriques** — envoie les données dans InfluxDB toutes les 2s
+
+**6.** Les services démarrent automatiquement à la fin du wizard, puis à chaque démarrage Windows.
+
+> Pas de redémarrage requis. Le dashboard est opérationnel immédiatement après le wizard.
 
 > **Réparer / Réinstaller** : ouvrez les paramètres (⚙) et cliquez **Réparer**.
 
@@ -69,17 +83,20 @@ Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
 ```powershell
 # 1. Build signé (clé privée dans ~/.monitor4me-signing-key)
 cd app
-.\build-signed.ps1          # Entrée au prompt password = vide
+.\build-signed.ps1
 
 # 2. Générer latest.json pour l'auto-updater
 cd ..
 .\scripts\generate-latest-json.ps1 -Version "X.Y.Z" -Notes "Description"
 
-# 3. Release GitHub
+# 3. Packager le collecteur
+.\scripts\package-collector.ps1
+
+# 4. Release GitHub
 gh release create vX.Y.Z `
     "app\src-tauri\target\release\bundle\nsis\monitor4me_X.Y.Z_x64-setup.exe" `
     "app\src-tauri\target\release\bundle\nsis\monitor4me_X.Y.Z_x64-setup.exe.sig" `
-    "latest.json" `
+    "latest.json" "collector-dist.zip" `
     --title "monitor4me vX.Y.Z" --notes "..."
 
 git push origin master
@@ -101,14 +118,12 @@ monitor4me/
 │   └── src-tauri/          Couche Rust (fenêtre, tray, updater)
 ├── collector/              Collecteur Node.js
 │   └── src/
-│       ├── index.ts        Boucle principale (toutes les 5s)
+│       ├── index.ts        Boucle principale (toutes les 2s)
 │       ├── lhm.ts          Parsing capteurs LHM
 │       ├── anomaly.ts      Détection anomalies (z-score)
 │       ├── notify.ts       Notifications Windows
 │       └── monitors.ts     Détection écrans WMI
-├── scripts/                Scripts setup/build/release
-├── install.ps1             Installeur autonome (utilisateurs finaux)
-└── uninstall.ps1           Désinstalleur complet
+└── scripts/                Scripts setup/build/release
 ```
 
 ---
