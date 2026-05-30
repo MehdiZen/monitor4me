@@ -548,16 +548,12 @@ async function runSetupWizard(): Promise<void> {
   if (!wizard) return
   wizard.style.display = "flex"
 
-  const step1 = el("setup-step-1")
   const step2 = el("setup-step-2")
   const step3 = el("setup-step-3")
 
-  const btnNext1 = el("btn-setup-next-1")
   const btnNext2 = el("btn-setup-next-2")
-  const btnBack2 = el("btn-setup-back-2")
   const btnFinish = el("btn-setup-finish")
 
-  const inputPass = el<HTMLInputElement>("setup-db-pass")
   const inputTarif = el<HTMLInputElement>("setup-tarif")
 
   const progressIcon = el("setup-progress-icon")
@@ -566,19 +562,9 @@ async function runSetupWizard(): Promise<void> {
   const progressBar = el("setup-progress-bar")
   const logsContainer = el("setup-logs")
 
-  let dbPass = "monitor4me-local"
+  // Mot de passe fixe — les donnees ne sont pas sensibles, pas besoin de le demander
+  const dbPass = "monitor4me-local"
   let tarif = 0.2516
-
-  btnNext1?.addEventListener("click", () => {
-    dbPass = inputPass?.value || "monitor4me-local"
-    if (step1) step1.style.display = "none"
-    if (step2) step2.style.display = "flex"
-  })
-
-  btnBack2?.addEventListener("click", () => {
-    if (step2) step2.style.display = "none"
-    if (step1) step1.style.display = "flex"
-  })
 
   btnNext2?.addEventListener("click", async () => {
     tarif = parseFloat(inputTarif?.value || "0.2516") || 0.2516
