@@ -131,7 +131,25 @@ if (Test-Path $influxExe) {
     } catch { LogErr "Echec InfluxDB : $_" }
 }
 
-# -- 3. LibreHardwareMonitor --
+# -- 3. .NET Desktop Runtime (requis par LHM) --
+LogStep ".NET Desktop Runtime"
+$dotnetOk = $false
+try {
+    $runtimes = & dotnet --list-runtimes 2>&1
+    $dotnetOk = ($runtimes | Where-Object { $_ -match "Microsoft\.WindowsDesktop\.App\s+[6-9]\." }) -ne $null
+} catch {}
+if ($dotnetOk) {
+    LogOK ".NET Desktop Runtime deja installe"
+} elseif (IsCmd "winget") {
+    LogInfo "Installation .NET Desktop Runtime 8..."
+    winget install --id Microsoft.DotNet.DesktopRuntime.8 -e --silent `
+        --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+    LogOK ".NET Desktop Runtime 8 installe"
+} else {
+    LogWarn ".NET Desktop Runtime absent - LHM risque de ne pas demarrer"
+}
+
+# -- 4. LibreHardwareMonitor --
 LogStep "LibreHardwareMonitor"
 $lhmExe = Get-ChildItem $LHM_DIR -Filter "LibreHardwareMonitor.exe" -Recurse `
               -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
