@@ -113,7 +113,11 @@ if (Test-Path $influxExe) {
         Expand-Archive -Path $zipTmp -DestinationPath $extractTmp -Force
         $inner = Get-ChildItem $extractTmp | Select-Object -First 1
         New-Item -ItemType Directory -Force -Path $INFLUX_DIR | Out-Null
-        Copy-Item -Path "$($inner.FullName)\*" -Destination $INFLUX_DIR -Recurse -Force
+        if ($inner -and $inner.PSIsContainer) {
+            Copy-Item -Path "$($inner.FullName)\*" -Destination $INFLUX_DIR -Recurse -Force
+        } else {
+            Copy-Item -Path "$extractTmp\*" -Destination $INFLUX_DIR -Recurse -Force
+        }
         Remove-Item $extractTmp -Recurse -Force
         Remove-Item $zipTmp -Force
         if (Test-Path $influxExe) { LogOK "InfluxDB $INFLUX_VER installe" }
