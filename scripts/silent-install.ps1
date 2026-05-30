@@ -134,19 +134,42 @@ if (Test-Path $influxExe) {
 # -- 3. .NET Desktop Runtime (requis par LHM) --
 LogStep ".NET Desktop Runtime"
 $dotnetOk = $false
-try {
-    $runtimes = & dotnet --list-runtimes 2>&1
-    $dotnetOk = ($runtimes | Where-Object { $_ -match "Microsoft\.WindowsDesktop\.App\s+[6-9]\." }) -ne $null
-} catch {}
+# Detection : cherche dans le registre (plus fiable que dotnet.exe en contexte eleve)
+$dotnetKeys = @(
+    "HKLM:\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
+    "HKLM:\SOFTWARE\WOW6432Node\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App"
+)
+foreach ($key in $dotnetKeys) {
+    if (Test-Path $key) {
+        $versions = Get-ItemProperty $key -ErrorAction SilentlyContinue
+        if ($versions.PSObject.Properties | Where-Object { $_.Name -match "^[6-9]\." }) {
+            $dotnetOk = $true; break
+        }
+    }
+}
+# Fallback : dotnet CLI
+if (-not $dotnetOk) {
+    try {
+        $r = & "$env:ProgramFiles\dotnet\dotnet.exe" --list-runtimes 2>&1
+        $dotnetOk = ($r | Where-Object { $_ -match "Microsoft\.WindowsDesktop\.App\s+[6-9]\." }) -ne $null
+    } catch {}
+}
+
 if ($dotnetOk) {
     LogOK ".NET Desktop Runtime deja installe"
-} elseif (IsCmd "winget") {
-    LogInfo "Installation .NET Desktop Runtime 8..."
-    winget install --id Microsoft.DotNet.DesktopRuntime.8 -e --silent `
-        --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
-    LogOK ".NET Desktop Runtime 8 installe"
 } else {
-    LogWarn ".NET Desktop Runtime absent - LHM risque de ne pas demarrer"
+    LogInfo "Telechargement .NET Desktop Runtime 8..."
+    $dotnetUrl = "https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe"
+    $dotnetTmp  = "$env:TEMP\dotnet-desktop-runtime.exe"
+    try {
+        Invoke-WebRequest $dotnetUrl -OutFile $dotnetTmp -UseBasicParsing -TimeoutSec 120
+        LogInfo "Installation .NET Desktop Runtime 8 (silencieuse)..."
+        Start-Process $dotnetTmp -ArgumentList "/install /quiet /norestart" -Wait
+        Remove-Item $dotnetTmp -Force -ErrorAction SilentlyContinue
+        LogOK ".NET Desktop Runtime 8 installe"
+    } catch {
+        LogErr "Echec installation .NET : $_"
+    }
 }
 
 # -- 4. LibreHardwareMonitor --
