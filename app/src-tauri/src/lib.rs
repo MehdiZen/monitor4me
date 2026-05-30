@@ -106,27 +106,32 @@ async fn run_silent_install(
         .map_err(|e| format!("Echec creation launcher : {}", e))?;
     let launcher_str = launcher_path.to_string_lossy().into_owned();
 
-    // 4. Le wrapper PowerShell (non-eleve) :
-    //    - ecrit dans le log AVANT de demander l'elevation (diagnostic)
-    //    - lance le launcher avec -Verb RunAs (UAC)
-    //    - capture l'erreur si l'elevation echoue et l'ecrit dans le log
-    let ps_cmd = format!(
-        "$log = '{log}'; \
-         Add-Content $log 'STEP: Demande elevation UAC' -Encoding UTF8; \
-         try {{ \
-           Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait \
-             -ArgumentList '-ExecutionPolicy Bypass -NonInteractive -File \"{launcher}\"'; \
-           Add-Content $log 'STEP: Wrapper termine' -Encoding UTF8 \
-         }} catch {{ \
-           Add-Content $log \"ERR: Elevation echouee - $_\" -Encoding UTF8 \
-         }}",
-        log     = log_str.replace('\'', "''"),
-        launcher = launcher_str.replace('"', "\"\""),
+    // 4. Ecrire le wrapper sur disque aussi (evite tout parsing -Command inline).
+    //    Le wrapper est non-eleve : ecrit dans le log puis demande l'elevation UAC.
+    let wrapper_content = format!(
+        "$ErrorActionPreference = 'SilentlyContinue'\r\n\
+         Add-Content -Path '{}' -Value 'STEP: Demande elevation UAC' -Encoding UTF8\r\n\
+         try {{\r\n\
+           Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait `\r\n\
+             -ArgumentList '-ExecutionPolicy Bypass -NonInteractive -File \"{}\"'\r\n\
+           Add-Content -Path '{}' -Value 'STEP: Wrapper termine' -Encoding UTF8\r\n\
+         }} catch {{\r\n\
+           Add-Content -Path '{}' -Value ('ERR: Elevation echouee - ' + $_.Exception.Message) -Encoding UTF8\r\n\
+         }}\r\n",
+        log_str.replace('\'', "''"),
+        launcher_str.replace('"', "\"\""),
+        log_str.replace('\'', "''"),
+        log_str.replace('\'', "''"),
     );
+
+    let wrapper_path = std::env::temp_dir().join("monitor4me-wrapper.ps1");
+    std::fs::write(&wrapper_path, wrapper_content.as_bytes())
+        .map_err(|e| format!("Echec creation wrapper : {}", e))?;
+    let wrapper_str = wrapper_path.to_string_lossy().into_owned();
 
     let mut child = Command::new("powershell")
         .creation_flags(CREATE_NO_WINDOW)
-        .args(&["-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &ps_cmd])
+        .args(&["-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", &wrapper_str])
         .spawn()
         .map_err(|e| format!("Echec lancement wrapper : {}", e))?;
 
