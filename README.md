@@ -88,7 +88,6 @@ monitor4me/
 │       ├── anomaly.ts      Détection anomalies (z-score)
 │       ├── notify.ts       Notifications Windows
 │       └── monitors.ts     Détection écrans WMI
-├── docs/                   Screenshots pour le README
 └── scripts/                Scripts setup/build/release
 ```
 
