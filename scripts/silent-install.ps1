@@ -459,4 +459,18 @@ try {
     }
 } catch {}
 
+# -- 9. Demarrage immediat des services (sans attendre le prochain logon) --
+LogStep "Demarrage des services"
+try {
+    Start-ScheduledTask "PC-Monitor-InfluxDB" -ErrorAction SilentlyContinue
+    LogInfo "InfluxDB demarre"
+    Start-Sleep 8
+    Start-ScheduledTask "PC-Monitor-LHM" -ErrorAction SilentlyContinue
+    LogInfo "LHM demarre"
+    Start-Sleep 5
+    Start-ScheduledTask "PC-Monitor-Collector" -ErrorAction SilentlyContinue
+    LogInfo "Collecteur demarre"
+    LogOK "Services lances"
+} catch { LogWarn "Demarrage services : $_" }
+
 LogStep "INSTALLATION_SUCCESS"
