@@ -513,6 +513,13 @@ function setupSettings(): void {
     inputs[inputs.length - 1]?.focus()
   })
 
+  el("modal-reconfigure")?.addEventListener("click", () => {
+    if (!confirm("Réparer l'installation ?\nCela effacera la configuration locale et relancera le wizard.")) return
+    localStorage.removeItem("pc-monitor-setup-completed")
+    localStorage.removeItem(TARIF_KEY)
+    window.location.reload()
+  })
+
   el("modal-save")?.addEventListener("click", () => {
     const v = parseFloat(input.value)
     if (isNaN(v) || v <= 0) { input.style.borderColor = "var(--red)"; return }
