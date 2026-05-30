@@ -71,6 +71,9 @@ async fn run_silent_install(
                 res_dir.join("silent-install.ps1"),
                 res_dir.join("scripts").join("silent-install.ps1"),
                 res_dir.join("resources").join("silent-install.ps1"),
+                // Tauri 2 traduit ../ en _up_/ dans le bundle NSIS
+                res_dir.join("_up_").join("scripts").join("silent-install.ps1"),
+                res_dir.join("_up_").join("_up_").join("scripts").join("silent-install.ps1"),
             ] {
                 if p.exists() { script_path = p.clone(); break; }
             }
