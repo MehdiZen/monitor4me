@@ -131,9 +131,26 @@ if (Test-Path $influxExe) {
     } catch { LogErr "Echec InfluxDB : $_" }
 }
 
-# -- 3. LibreHardwareMonitor --
-# On utilise la derniere version net472 (v0.9.4) : fonctionne sans dependance .NET
-# Les versions v0.9.5+ ciblent net10.0 et sont incompatibles avec Windows 10 19041
+# -- 3. .NET Desktop Runtime (requis par LHM 0.9.5+) --
+LogStep ".NET Desktop Runtime"
+$dotnetUrl = "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
+$dotnetTmp  = "$env:TEMP\dotnet-desktop-runtime.exe"
+LogInfo "Telechargement .NET Desktop Runtime 10..."
+try {
+    Invoke-WebRequest $dotnetUrl -OutFile $dotnetTmp -UseBasicParsing -TimeoutSec 120
+    $proc = Start-Process $dotnetTmp -ArgumentList "/install /quiet /norestart" -Wait -PassThru
+    Remove-Item $dotnetTmp -Force -ErrorAction SilentlyContinue
+    # 0=succes, 1638=version plus recente deja presente, 3010=reboot suggere (non bloquant)
+    if ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 1638 -or $proc.ExitCode -eq 3010) {
+        LogOK ".NET Desktop Runtime 10 installe (code=$($proc.ExitCode))"
+    } else {
+        LogWarn ".NET installer code=$($proc.ExitCode)"
+    }
+} catch {
+    LogErr "Echec installation .NET : $_"
+}
+
+# -- 4. LibreHardwareMonitor --
 LogStep "LibreHardwareMonitor"
 $lhmExe = Get-ChildItem $LHM_DIR -Filter "LibreHardwareMonitor.exe" -Recurse `
               -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
@@ -142,17 +159,20 @@ if ($lhmExe) {
     LogOK "LHM deja installe : $lhmExe"
 } else {
     try {
-        # Derniere version net472 = v0.9.4
-        $lhmUrl = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/download/v0.9.4/LibreHardwareMonitor-net472.zip"
+        LogInfo "Recuperation derniere version LHM..."
+        $rel   = Invoke-RestMethod `
+            "https://api.github.com/repos/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest" `
+            -TimeoutSec 20 -Headers @{"User-Agent"="monitor4me-install/1.0"}
+        $asset = $rel.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
         $lhmZip = "$env:TEMP\lhm.zip"
-        LogInfo "Telechargement LibreHardwareMonitor v0.9.4 (net472)..."
-        Invoke-WebRequest $lhmUrl -OutFile $lhmZip -UseBasicParsing -TimeoutSec 120
+        LogInfo "Telechargement $($asset.name)..."
+        Invoke-WebRequest $asset.browser_download_url -OutFile $lhmZip -UseBasicParsing -TimeoutSec 120
         New-Item -ItemType Directory -Force -Path $LHM_DIR | Out-Null
         Expand-Archive -Path $lhmZip -DestinationPath $LHM_DIR -Force
         Remove-Item $lhmZip -Force
         $lhmExe = Get-ChildItem $LHM_DIR -Filter "LibreHardwareMonitor.exe" -Recurse |
                   Select-Object -First 1 -ExpandProperty FullName
-        if ($lhmExe) { LogOK "LibreHardwareMonitor v0.9.4 installe" }
+        if ($lhmExe) { LogOK "LibreHardwareMonitor installe" }
         else { LogErr "LibreHardwareMonitor.exe introuvable apres extraction" }
     } catch { LogErr "Echec LHM : $_" }
 }
