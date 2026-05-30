@@ -660,21 +660,18 @@ async function runSetupWizard(): Promise<void> {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
 async function boot(): Promise<void> {
-  const token = await invoke<string>("get_influx_token").catch(() => "")
-  
-  // Si un token d'accès existe déjà dans l'environnement (installation existante),
-  // on valide automatiquement l'étape de configuration pour ne pas déranger l'utilisateur.
-  if (token && token.trim() !== "") {
-    localStorage.setItem("pc-monitor-setup-completed", "true")
-  }
-
+  // Le seul critere pour sauter le wizard : l'utilisateur l'a explicitement termine.
+  // On ne se base plus sur INFLUX_TOKEN car cette var peut rester dans l'env
+  // d'une ancienne install et faire sauter le wizard indefiniment.
   const setupCompleted = localStorage.getItem("pc-monitor-setup-completed") === "true"
 
-  if (!token || !setupCompleted) {
+  if (!setupCompleted) {
     setupWindowControls()
     await runSetupWizard()
     return
   }
+
+  const token = await invoke<string>("get_influx_token").catch(() => "")
 
   setupTabs()
   initCharts()
