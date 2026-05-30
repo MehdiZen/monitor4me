@@ -409,9 +409,20 @@ try {
     $nodePath = Get-Command "node" -ErrorAction SilentlyContinue
     $nodeExe  = if ($nodePath) { $nodePath.Source } else { "$env:ProgramFiles\nodejs\node.exe" }
     if ((Test-Path $nodeExe) -and (Test-Path $collectorDist)) {
+        # Launcher VBScript : demarre node avec window style=0 (completement invisible)
+        # wscript.exe attend la fin du process (True) → le task scheduler peut redemarrer si crash
+        $vbsPath = "$COLLECTOR_DIR\start-collector.vbs"
+        $vbsContent = @"
+Set oWsh = CreateObject("WScript.Shell")
+oWsh.Run "node.exe ""$($collectorDist.Replace('\','\\'))"" ", 0, True
+"@
+        Set-Content $vbsPath $vbsContent -Encoding ASCII -Force
+
         $cTrig = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME; $cTrig.Delay = "PT25S"
         $s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit $noLimit -RestartCount 10 -RestartInterval $restart1 -StartWhenAvailable
-        RegTask "PC-Monitor-Collector" (New-ScheduledTaskAction -Execute $nodeExe -Argument "$COLLECTOR_DIR\dist\index.js" -WorkingDirectory $COLLECTOR_DIR) $cTrig $userPrin $s "Collecteur monitor4me"
+        RegTask "PC-Monitor-Collector" `
+            (New-ScheduledTaskAction -Execute "wscript.exe" -Argument "//B `"$vbsPath`"" -WorkingDirectory $COLLECTOR_DIR) `
+            $cTrig $userPrin $s "Collecteur monitor4me"
     }
 
     LogOK "Taches de boot configurees"

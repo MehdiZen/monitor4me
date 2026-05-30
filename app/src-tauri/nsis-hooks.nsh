@@ -30,4 +30,7 @@
   Delete "$TEMP\monitor4me-setup.log"
   Delete "$TEMP\monitor4me-launcher.ps1"
   Delete "$TEMP\monitor4me-wrapper.ps1"
+
+  ; Supprimer le launcher VBScript du collecteur
+  Delete "$APPDATA\monitor4me\collector\start-collector.vbs"
 !macroend
