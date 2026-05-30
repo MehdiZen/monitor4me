@@ -184,7 +184,7 @@ if (Test-Path $collectorDist) {
 }
 
 # -- 5. Configuration InfluxDB --
-if ((Test-Path $influxExe) -and -not [string]::IsNullOrWhiteSpace($AdminPass)) {
+if (Test-Path $influxExe) {
     LogStep "Configuration InfluxDB"
     $influxRunning = $false
     try {
@@ -203,60 +203,93 @@ if ((Test-Path $influxExe) -and -not [string]::IsNullOrWhiteSpace($AdminPass)) {
                 $h = Invoke-RestMethod "$INFLUX_URL/health" -TimeoutSec 3
                 if ($h.status -eq "pass") { $influxReady = $true; break }
             } catch {}
-            LogInfo "Attente InfluxDB... ($($i * 3)s)"
         }
     }
 
     if ($influxReady) {
-        try {
-            $token  = $null
-            $status = Invoke-RestMethod "$INFLUX_URL/api/v2/setup" -Method GET
-            if ($status.allowed -eq $true) {
-                $body = @{
-                    username="admin"; password=$AdminPass
-                    org="home"; bucket="pc-monitor"
-                    retentionPeriodSeconds=2592000
-                } | ConvertTo-Json
-                $result = Invoke-RestMethod "$INFLUX_URL/api/v2/setup" `
-                    -Method POST -Body $body -ContentType "application/json"
-                $token = $result.auth.token
-                LogOK "InfluxDB configure (org:home, bucket:pc-monitor)"
-            } else {
-                $cred   = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("admin:$AdminPass"))
-                $signin = Invoke-WebRequest "$INFLUX_URL/api/v2/signin" `
-                    -Method POST -Headers @{Authorization="Basic $cred"} -UseBasicParsing
-                $cookie  = ($signin.Headers["Set-Cookie"] -split ";")[0]
-                $authHdr = @{Cookie=$cookie}
-                $orgs    = Invoke-RestMethod "$INFLUX_URL/api/v2/orgs?org=home" -Headers $authHdr
-                $orgId   = $orgs.orgs[0].id
-                $auths   = Invoke-RestMethod "$INFLUX_URL/api/v2/authorizations?org=home" -Headers $authHdr
-                $ex      = $auths.authorizations |
-                           Where-Object { $_.description -eq "pc-monitor-collector" } |
-                           Select-Object -First 1
-                if ($ex) {
-                    $token = $ex.token; LogOK "Token existant recupere"
+        $token      = $null
+        $tokenCache = "$DEPS_DIR\influx-token.txt"
+
+        # 0. Token cache : si un token valide existe deja, pas besoin de re-auth
+        if (Test-Path $tokenCache) {
+            $cached = (Get-Content $tokenCache -Raw -ErrorAction SilentlyContinue).Trim()
+            if ($cached) {
+                try {
+                    Invoke-RestMethod "$INFLUX_URL/api/v2/me" `
+                        -Headers @{Authorization="Token $cached"} -TimeoutSec 5 | Out-Null
+                    $token = $cached
+                    LogOK "Token cache valide, rien a faire"
+                } catch { $token = $null }
+            }
+        }
+
+        if (-not $token) {
+            try {
+                $status = Invoke-RestMethod "$INFLUX_URL/api/v2/setup" -Method GET -TimeoutSec 5
+
+                if ($status.allowed -eq $true) {
+                    # Installation fraiche
+                    $body = @{
+                        username="admin"; password=$AdminPass
+                        org="home"; bucket="pc-monitor"
+                        retentionPeriodSeconds=2592000
+                    } | ConvertTo-Json
+                    $result = Invoke-RestMethod "$INFLUX_URL/api/v2/setup" `
+                        -Method POST -Body $body -ContentType "application/json"
+                    $token = $result.auth.token
+                    LogOK "InfluxDB configure (org:home, bucket:pc-monitor)"
                 } else {
-                    $bkts  = Invoke-RestMethod "$INFLUX_URL/api/v2/buckets?org=home" -Headers $authHdr
-                    $bktId = ($bkts.buckets | Where-Object { $_.name -eq "pc-monitor" } | Select-Object -First 1).id
-                    $tBody = @{
-                        orgID=$orgId; description="pc-monitor-collector"
-                        permissions=@(
-                            @{action="read";  resource=@{type="buckets";orgID=$orgId;id=$bktId}},
-                            @{action="write"; resource=@{type="buckets";orgID=$orgId;id=$bktId}}
-                        )
-                    } | ConvertTo-Json -Depth 5
-                    $auth  = Invoke-RestMethod "$INFLUX_URL/api/v2/authorizations" `
-                        -Method POST -Body $tBody `
-                        -Headers @{Cookie=$cookie; "Content-Type"="application/json"}
-                    $token = $auth.token; LogOK "Nouveau token cree"
+                    # Deja configure — essaie plusieurs mots de passe possibles
+                    # (installation anterieure avec mdp vide, ou autre valeur)
+                    $candidates = @($AdminPass, "", "monitor4me-local") | Select-Object -Unique
+                    foreach ($pwd in $candidates) {
+                        try {
+                            $cred   = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("admin:$pwd"))
+                            $signin = Invoke-WebRequest "$INFLUX_URL/api/v2/signin" `
+                                -Method POST -Headers @{Authorization="Basic $cred"} `
+                                -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                            $cookie  = ($signin.Headers["Set-Cookie"] -split ";")[0]
+                            $authHdr = @{Cookie=$cookie}
+
+                            $orgs  = Invoke-RestMethod "$INFLUX_URL/api/v2/orgs?org=home" -Headers $authHdr
+                            $orgId = $orgs.orgs[0].id
+                            $auths = Invoke-RestMethod "$INFLUX_URL/api/v2/authorizations?org=home" -Headers $authHdr
+                            $ex    = $auths.authorizations |
+                                     Where-Object { $_.description -eq "pc-monitor-collector" } |
+                                     Select-Object -First 1
+
+                            if ($ex) {
+                                $token = $ex.token; LogOK "Token existant recupere (pwd=$pwd)"
+                            } else {
+                                $bkts  = Invoke-RestMethod "$INFLUX_URL/api/v2/buckets?org=home" -Headers $authHdr
+                                $bktId = ($bkts.buckets | Where-Object { $_.name -eq "pc-monitor" } | Select-Object -First 1).id
+                                $tBody = @{
+                                    orgID=$orgId; description="pc-monitor-collector"
+                                    permissions=@(
+                                        @{action="read";  resource=@{type="buckets";orgID=$orgId;id=$bktId}},
+                                        @{action="write"; resource=@{type="buckets";orgID=$orgId;id=$bktId}}
+                                    )
+                                } | ConvertTo-Json -Depth 5
+                                $auth  = Invoke-RestMethod "$INFLUX_URL/api/v2/authorizations" `
+                                    -Method POST -Body $tBody `
+                                    -Headers @{Cookie=$cookie; "Content-Type"="application/json"}
+                                $token = $auth.token; LogOK "Nouveau token cree"
+                            }
+                            break  # succes — sort de la boucle
+                        } catch { continue }  # essaie le mot de passe suivant
+                    }
+                    if (-not $token) { LogErr "Aucun mot de passe n'a fonctionne pour InfluxDB" }
                 }
-            }
-            if ($token) {
-                [System.Environment]::SetEnvironmentVariable("INFLUX_TOKEN", $token, "User")
-                $env:INFLUX_TOKEN = $token
-                LogOK "INFLUX_TOKEN sauvegarde"
-            }
-        } catch { LogErr "Config InfluxDB : $_" }
+            } catch { LogErr "Config InfluxDB : $_" }
+        }
+
+        if ($token) {
+            [System.Environment]::SetEnvironmentVariable("INFLUX_TOKEN", $token, "User")
+            $env:INFLUX_TOKEN = $token
+            New-Item -ItemType Directory -Force -Path $DEPS_DIR | Out-Null
+            Set-Content $tokenCache $token -Encoding UTF8 -NoNewline
+            LogOK "INFLUX_TOKEN sauvegarde"
+        }
     } else { LogWarn "InfluxDB ne repond pas apres 60s" }
 
     if ($tmpProc) { Stop-Process -Id $tmpProc.Id -ErrorAction SilentlyContinue }
