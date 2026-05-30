@@ -3,9 +3,8 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter, Manager,
 };
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::os::windows::process::CommandExt;
-use std::io::{BufRead, BufReader};
 
 // creation flag to prevent console window flashing under Windows
 const CREATE_NO_WINDOW: u32 = 0x08000000;
