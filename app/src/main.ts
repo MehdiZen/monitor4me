@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core"
-import { listen } from "@tauri-apps/api/event"
 import { store } from "./store"
 import { startWS, onMessage, sendConfig, type CollectorConfig } from "./ws-client"
 import { getTodayCost, getMonthlyProjection, get24hHourly, get7dDaily, getAnomalyHistory, getLast3DaysCost, getLast31DaysCost, setInfluxHost } from "./influx"
@@ -573,77 +572,75 @@ async function runSetupWizard(): Promise<void> {
   const dbPass = "monitor4me-local"
   let tarif = 0.2516
 
+  function addLogLine(line: string): void {
+    const div = document.createElement("div")
+    if (line.startsWith("STEP: ")) {
+      const stepName = line.substring(6)
+      if (progressTitle) progressTitle.textContent = stepName
+      if (progressSubtitle) progressSubtitle.textContent = "Configuration en cours..."
+      if (progressBar) {
+        const cur = parseFloat(progressBar.style.width) || 0
+        progressBar.style.width = Math.min(95, cur + 12) + "%"
+      }
+      div.style.fontWeight = "bold"
+      div.style.color = "var(--accent)"
+      div.textContent = `➜ ${stepName}`
+    } else if (line.startsWith("OK: ")) {
+      div.className = "ok"
+      div.textContent = `✓ ${line.substring(4)}`
+    } else if (line.startsWith("ERR: ")) {
+      div.className = "err"
+      div.textContent = `✗ ${line.substring(5)}`
+      if (progressIcon) { progressIcon.className = "setup-icon"; progressIcon.textContent = "❌" }
+      if (progressTitle) progressTitle.textContent = "Échec de l'installation"
+      if (progressSubtitle) progressSubtitle.textContent = "Vérifiez les logs ci-dessous."
+    } else if (line.startsWith("WARN: ")) {
+      div.style.color = "var(--orange)"
+      div.textContent = `⚠ ${line.substring(6)}`
+    } else {
+      div.textContent = line
+    }
+    if (logsContainer) {
+      logsContainer.appendChild(div)
+      logsContainer.scrollTop = logsContainer.scrollHeight
+    }
+    if (line.includes("INSTALLATION_SUCCESS")) {
+      if (progressBar) progressBar.style.width = "100%"
+      if (progressIcon) { progressIcon.className = "setup-icon"; progressIcon.textContent = "🎉" }
+      if (progressTitle) progressTitle.textContent = "Installation terminée avec succès !"
+      if (progressSubtitle) progressSubtitle.textContent = "monitor4me est prêt à fonctionner."
+      if (btnFinish) btnFinish.style.display = "block"
+    }
+  }
+
   btnNext2?.addEventListener("click", async () => {
     tarif = parseFloat(inputTarif?.value || "0.2516") || 0.2516
     if (step2) step2.style.display = "none"
     if (step3) step3.style.display = "flex"
 
-    const unlisten = await listen<string>("setup-log", (event) => {
-      const line = event.payload
-      const div = document.createElement("div")
-
-      if (line.startsWith("STEP: ")) {
-        const stepName = line.substring(6)
-        if (progressTitle) progressTitle.textContent = stepName
-        if (progressSubtitle) progressSubtitle.textContent = "Configuration en cours..."
-        
-        if (progressBar) {
-          const currentWidth = parseFloat(progressBar.style.width) || 0
-          progressBar.style.width = Math.min(95, currentWidth + 12) + "%"
+    // Poll get_install_log toutes les 500ms — plus fiable que les events Tauri
+    let lastLine = 0
+    const poll = setInterval(async () => {
+      try {
+        const content = await invoke<string>("get_install_log")
+        const lines = content.split(/\r?\n/).filter(l => l.trim() !== "")
+        for (let i = lastLine; i < lines.length; i++) addLogLine(lines[i])
+        lastLine = lines.length
+        if (content.includes("INSTALLATION_SUCCESS") || content.includes("ERR:")) {
+          clearInterval(poll)
         }
-        div.style.fontWeight = "bold"
-        div.style.color = "var(--accent)"
-        div.textContent = `➜ ${stepName}`
-      } else if (line.startsWith("OK: ")) {
-        div.className = "ok"
-        div.textContent = `✓ ${line.substring(4)}`
-      } else if (line.startsWith("ERR: ")) {
-        div.className = "err"
-        div.textContent = `✗ ${line.substring(5)}`
-        if (progressIcon) {
-          progressIcon.className = "setup-icon"
-          progressIcon.textContent = "❌"
-        }
-        if (progressTitle) progressTitle.textContent = "Échec de l'installation"
-        if (progressSubtitle) progressSubtitle.textContent = "Vérifiez les logs ci-dessous."
-      } else if (line.startsWith("WARN: ")) {
-        div.style.color = "var(--orange)"
-        div.textContent = `⚠ ${line.substring(6)}`
-      } else {
-        div.textContent = line
-      }
-
-      if (logsContainer) {
-        logsContainer.appendChild(div)
-        logsContainer.scrollTop = logsContainer.scrollHeight
-      }
-
-      if (line.includes("INSTALLATION_SUCCESS")) {
-        if (progressBar) progressBar.style.width = "100%"
-        if (progressIcon) {
-          progressIcon.className = "setup-icon"
-          progressIcon.textContent = "🎉"
-        }
-        if (progressTitle) progressTitle.textContent = "Installation terminée avec succès !"
-        if (progressSubtitle) progressSubtitle.textContent = "monitor4me est prêt à fonctionner."
-        if (btnFinish) btnFinish.style.display = "block"
-      }
-    })
+      } catch { /* ignore */ }
+    }, 500)
 
     try {
       await invoke("run_silent_install", { adminPass: dbPass, tarifKwh: tarif })
     } catch (err) {
+      clearInterval(poll)
       const div = document.createElement("div")
       div.className = "err"
       div.textContent = `Erreur critique : ${err}`
-      if (logsContainer) {
-        logsContainer.appendChild(div)
-        logsContainer.scrollTop = logsContainer.scrollHeight
-      }
-      if (progressIcon) {
-        progressIcon.className = "setup-icon"
-        progressIcon.textContent = "❌"
-      }
+      if (logsContainer) { logsContainer.appendChild(div); logsContainer.scrollTop = logsContainer.scrollHeight }
+      if (progressIcon) { progressIcon.className = "setup-icon"; progressIcon.textContent = "❌" }
       if (progressTitle) progressTitle.textContent = "Échec de l'installation"
       if (progressSubtitle) progressSubtitle.textContent = "Une erreur système est survenue."
     }
