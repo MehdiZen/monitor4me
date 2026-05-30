@@ -593,22 +593,11 @@
     <div class="setup-card">
       <div class="setup-header">
         <h1 class="setup-title">Configuration de monitor4me</h1>
-        <p class="setup-subtitle">Mettons en place votre système de suivi en 3 étapes simples et silencieuses.</p>
-      </div>
-      
-      <!-- Étape 1 : Mot de passe InfluxDB -->
-      <div class="setup-step" id="setup-step-1">
-        <div class="setup-icon">🔒</div>
-        <h2>Sécurisation de la base de données</h2>
-        <p>Choisissez un mot de passe administrateur pour l'instance locale d'InfluxDB 2.x.</p>
-        <div class="setting-group" style="margin-top:20px">
-          <input class="setting-input" id="setup-db-pass" type="password" value="monitor4me-local" style="width:100%; font-size:16px; box-sizing:border-box" placeholder="Mot de passe InfluxDB" />
-        </div>
-        <button class="btn-primary" id="btn-setup-next-1" style="width:100%; margin-top:20px; padding:12px; font-weight:700">Continuer</button>
+        <p class="setup-subtitle">Mettons en place votre système de suivi en 2 étapes simples et silencieuses.</p>
       </div>
 
-      <!-- Étape 2 : Tarif d'électricité -->
-      <div class="setup-step" id="setup-step-2" style="display:none">
+      <!-- Étape 1 : Tarif d'électricité -->
+      <div class="setup-step" id="setup-step-2">
         <div class="setup-icon">⚡</div>
         <h2>Tarif de l'électricité</h2>
         <p>Entrez votre tarif de kWh pour calculer vos coûts réels (modifiable à tout moment).</p>
@@ -619,8 +608,7 @@
           </div>
         </div>
         <div style="display:flex; gap:10px; margin-top:20px">
-          <button class="btn-secondary" id="btn-setup-back-2" style="flex:1; padding:12px; font-weight:600">Retour</button>
-          <button class="btn-primary" id="btn-setup-next-2" style="flex:2; padding:12px; font-weight:700">Lancer l'installation</button>
+          <button class="btn-primary" id="btn-setup-next-2" style="width:100%; padding:12px; font-weight:700">Lancer l'installation</button>
         </div>
       </div>
 
