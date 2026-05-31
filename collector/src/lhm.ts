@@ -52,22 +52,25 @@ function parseValue(raw: string | undefined): number {
   return isNaN(num) ? 0 : num
 }
 
-// Find the depth-1 hardware node (direct child of root) that contains a sensor
-// matching the predicate — returns its display name (e.g. "AMD Ryzen 7 7800X3D")
-// hardwareType filtre par ImageURL pour eviter de matcher un codec audio ou autre device
-function findHardwareName(root: LHMNode, predicate: (n: LHMNode) => boolean, hardwareType?: 'cpu' | 'gpu'): string {
-  const matches = (root.Children ?? []).filter(hwNode => {
-    if (!findSensors(hwNode, predicate).length) return false
-    if (!hardwareType) return true
-    const img = (hwNode.ImageURL ?? '').toLowerCase()
-    return img.includes(hardwareType)
-  })
-  if (matches.length) return matches[0].Text
-  // fallback sans filtre type si rien trouve
-  for (const hwNode of root.Children ?? []) {
-    if (findSensors(hwNode, predicate).length > 0) return hwNode.Text
+// Cherche recursivement le premier nœud dont ImageURL correspond au type hardware
+// (ex: "Images/cpu.png" → "AMD Ryzen 7 7800X3D", "Images/gpu_amd.png" → "AMD Radeon RX 9070 XT")
+// Independant de la profondeur — fonctionne quelle que soit la structure LHM
+function findHardwareName(root: LHMNode, hardwareType: 'cpu' | 'gpu'): string {
+  const GPU_PATTERNS = ['gpu', 'ati', 'nvidia', 'geforce', 'radeon']
+  function matches(img: string): boolean {
+    if (hardwareType === 'cpu') return img.includes('cpu')
+    return GPU_PATTERNS.some(p => img.includes(p))
   }
-  return ""
+  function search(node: LHMNode): string | null {
+    const img = (node.ImageURL ?? '').toLowerCase()
+    if (matches(img) && node.Text) return node.Text
+    for (const child of node.Children ?? []) {
+      const found = search(child)
+      if (found) return found
+    }
+    return null
+  }
+  return search(root) ?? ""
 }
 
 function findFirst(root: LHMNode, textIncludes: string, sensorType?: string): LHMNode | undefined {
@@ -117,14 +120,8 @@ export async function fetchLHMSensors(): Promise<LHMSensors> {
   const fan2Node = findSensors(root, n => n.Text === "Fan #2" && n.Type?.toLowerCase() === "fan" && n.Value !== undefined)[0]
   const fan5Node = findSensors(root, n => n.Text === "Fan #5" && n.Type?.toLowerCase() === "fan" && n.Value !== undefined)[0]
 
-  const cpuName = findHardwareName(root, n =>
-    n.Text.toLowerCase() === "package" && n.Type?.toLowerCase() === "power" && n.Value !== undefined,
-    'cpu'
-  )
-  const gpuName = findHardwareName(root, n =>
-    n.Text.toLowerCase().includes("gpu core") && n.Type?.toLowerCase() === "temperature" && n.Value !== undefined,
-    'gpu'
-  )
+  const cpuName = findHardwareName(root, 'cpu')
+  const gpuName = findHardwareName(root, 'gpu')
 
   const cpuRaw = parseValue(cpuPowerNode?.Value)
   const gpuPowerW = parseValue(gpuPowerNode?.Value)
