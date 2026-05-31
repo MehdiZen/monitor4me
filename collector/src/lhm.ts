@@ -54,7 +54,16 @@ function parseValue(raw: string | undefined): number {
 
 // Find the depth-1 hardware node (direct child of root) that contains a sensor
 // matching the predicate — returns its display name (e.g. "AMD Ryzen 7 7800X3D")
-function findHardwareName(root: LHMNode, predicate: (n: LHMNode) => boolean): string {
+// hardwareType filtre par ImageURL pour eviter de matcher un codec audio ou autre device
+function findHardwareName(root: LHMNode, predicate: (n: LHMNode) => boolean, hardwareType?: 'cpu' | 'gpu'): string {
+  const matches = (root.Children ?? []).filter(hwNode => {
+    if (!findSensors(hwNode, predicate).length) return false
+    if (!hardwareType) return true
+    const img = (hwNode.ImageURL ?? '').toLowerCase()
+    return img.includes(hardwareType)
+  })
+  if (matches.length) return matches[0].Text
+  // fallback sans filtre type si rien trouve
   for (const hwNode of root.Children ?? []) {
     if (findSensors(hwNode, predicate).length > 0) return hwNode.Text
   }
@@ -109,10 +118,12 @@ export async function fetchLHMSensors(): Promise<LHMSensors> {
   const fan5Node = findSensors(root, n => n.Text === "Fan #5" && n.Type?.toLowerCase() === "fan" && n.Value !== undefined)[0]
 
   const cpuName = findHardwareName(root, n =>
-    n.Text.toLowerCase() === "package" && n.Type?.toLowerCase() === "power" && n.Value !== undefined
+    n.Text.toLowerCase() === "package" && n.Type?.toLowerCase() === "power" && n.Value !== undefined,
+    'cpu'
   )
   const gpuName = findHardwareName(root, n =>
-    n.Text.toLowerCase().includes("gpu core") && n.Type?.toLowerCase() === "temperature" && n.Value !== undefined
+    n.Text.toLowerCase().includes("gpu core") && n.Type?.toLowerCase() === "temperature" && n.Value !== undefined,
+    'gpu'
   )
 
   const cpuRaw = parseValue(cpuPowerNode?.Value)
