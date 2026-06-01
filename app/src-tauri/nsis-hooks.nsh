@@ -14,6 +14,9 @@
 
 ; Nettoyage complet apres desinstallation
 !macro NSIS_HOOK_POSTUNINSTALL
+  ; Supprimer l'autostart
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "monitor4me"
+
   ; Supprimer la variable d'environnement INFLUX_TOKEN (systeme + utilisateur)
   DeleteRegValue HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "INFLUX_TOKEN"
   DeleteRegValue HKCU "Environment" "INFLUX_TOKEN"

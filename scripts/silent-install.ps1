@@ -444,7 +444,17 @@ try {
     } else { LogWarn "App introuvable - raccourci ignore" }
 } catch { LogWarn "Raccourci ignore : $_" }
 
-# -- 8. Config tarifaire collecteur --
+# -- 8. Autostart Windows (HKCU Run) --
+try {
+    $appExe = Find-AppExe
+    if ($appExe) {
+        $runKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+        Set-ItemProperty -Path $runKey -Name "monitor4me" -Value $appExe
+        LogOK "Autostart configure"
+    } else { LogWarn "Autostart ignore : exe introuvable" }
+} catch { LogWarn "Autostart : $_" }
+
+# -- 9. Config tarifaire collecteur --
 try {
     if (Test-Path $COLLECTOR_DIR) {
         $cfgPath = "$COLLECTOR_DIR\user-config.json"
