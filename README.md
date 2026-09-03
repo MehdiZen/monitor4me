@@ -55,6 +55,7 @@ Le wizard configure automatiquement le web server de LHM. Si les données n'appa
 - **Suivi périphériques** — écrans auto-détectés via WMI, consommation par écran configurable
 - **Détection d'anomalies** — alertes z-score pour throttling thermique, chutes de clock GPU, instabilité rails
 - **Graphiques historiques** — kWh horaire 24h · barres 7 jours · tableau complet 31 jours
+- **Installation en un fichier** — le wizard PowerShell détecte, télécharge et configure les cinq dépendances, enregistre les services Windows et les tâches planifiées, et sait se réparer ou se désinstaller proprement
 
 ---
 
@@ -68,6 +69,9 @@ Le wizard configure automatiquement le web server de LHM. Si les données n'appa
 | Capteurs | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) REST API |
 | Stockage | InfluxDB 2 · Flux |
 | Détection écrans | WMI via PowerShell (`Get-PnpDevice`) |
+| Installation | ~150 Ko de PowerShell : install, install silencieux, réparation, désinstallation, packaging et release |
+
+> Les scripts d'installation sont exclus des statistiques de langages GitHub (`.gitattributes`) — ils pèsent plus lourd que le code applicatif et écrasaient la barre. Ils restent la plus grosse pièce d'outillage du projet.
 
 ---
 
