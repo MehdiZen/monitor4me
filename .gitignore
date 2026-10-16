@@ -21,6 +21,7 @@ app/src-tauri/gen/
 # Env & secrets
 .env
 .env.*
+!.env.example
 *.secret
 
 # OS
