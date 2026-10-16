@@ -11,7 +11,7 @@ Dashboard de monitoring hardware pour PC Windows : température, consommation é
 
 ![Démo de monitor4me](docs/media/demo.gif)
 
-> La démo utilise des **données synthétiques** (collecteur et InfluxDB simulés, signalé par la mention "DEMO" dans le coin), pas de vraies mesures. Vidéo complète : [docs/media/demo.mp4](docs/media/demo.mp4).
+> La démo utilise des **données synthétiques** (collecteur et InfluxDB simulés), pas de vraies mesures. Vidéo complète : [docs/media/demo.mp4](docs/media/demo.mp4).
 
 ## Fonctionnalités
 

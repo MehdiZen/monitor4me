@@ -11,7 +11,7 @@ Hardware monitoring dashboard for Windows PCs: temperatures, power draw, electri
 
 ![monitor4me demo](docs/media/demo.gif)
 
-> The demo uses **synthetic data** (mocked collector and InfluxDB, flagged by a "DEMO" label in the corner), not real measurements. Full video: [docs/media/demo.mp4](docs/media/demo.mp4).
+> The demo uses **synthetic data** (mocked collector and InfluxDB), not real measurements. Full video: [docs/media/demo.mp4](docs/media/demo.mp4).
 
 ## Features
 
