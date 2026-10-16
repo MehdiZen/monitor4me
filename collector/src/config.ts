@@ -40,7 +40,7 @@ export const CONFIG = {
 
   // InfluxDB
   INFLUX_URL: "http://localhost:8086",
-  INFLUX_TOKEN: process.env.INFLUX_TOKEN ?? "pc-monitor-token",
+  INFLUX_TOKEN: process.env.INFLUX_TOKEN ?? "",
   INFLUX_ORG: "home",
   INFLUX_BUCKET: "pc-monitor",
   INFLUX_HOST_TAG: os.hostname(),

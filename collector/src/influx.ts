@@ -9,6 +9,7 @@ let writeApi: WriteApi | null = null
 
 function getWriteApi(): WriteApi {
   if (!writeApi) {
+    if (!CONFIG.INFLUX_TOKEN) console.warn("INFLUX_TOKEN is not set: InfluxDB writes will be rejected")
     const client = new InfluxDB({ url: CONFIG.INFLUX_URL, token: CONFIG.INFLUX_TOKEN })
     writeApi = client.getWriteApi(CONFIG.INFLUX_ORG, CONFIG.INFLUX_BUCKET, "ms")
     writeApi.useDefaultTags({ host: CONFIG.INFLUX_HOST_TAG })

@@ -11,11 +11,11 @@ export function setInfluxHost(host: string): void {
 
 // Token fetched once from Tauri env (INFLUX_TOKEN user env var)
 const TOKEN_PROMISE: Promise<string> = invoke<string>("get_influx_token")
-  .then(t => t || "pc-monitor-token")
-  .catch(() => "pc-monitor-token")
+  .catch(() => "")
 
 async function query(flux: string): Promise<string> {
   const token = await TOKEN_PROMISE
+  if (!token) throw new Error("INFLUX_TOKEN is not set")
   const res = await fetch(`${INFLUX_URL}/api/v2/query?org=${encodeURIComponent(ORG)}`, {
     method: "POST",
     headers: {
