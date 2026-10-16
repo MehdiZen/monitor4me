@@ -11,7 +11,7 @@ Dashboard de monitoring hardware pour PC Windows : température, consommation é
 
 ![Démo de monitor4me](docs/media/demo.gif)
 
-> La démo utilise des **données synthétiques** (collecteur et InfluxDB simulés, signalé par la mention « DEMO » dans le coin), pas de vraies mesures. Vidéo complète : [docs/media/demo.mp4](docs/media/demo.mp4).
+> La démo utilise des **données synthétiques** (collecteur et InfluxDB simulés, signalé par la mention "DEMO" dans le coin), pas de vraies mesures. Vidéo complète : [docs/media/demo.mp4](docs/media/demo.mp4).
 
 ## Fonctionnalités
 
@@ -56,13 +56,13 @@ Un dashboard Grafana est aussi fourni : [`grafana/dashboards/pc-monitor.json`](g
 ### Option 1 : installeur de la release (recommandé)
 
 1. Téléchargez `monitor4me_x64-setup.exe` depuis la [dernière release](https://github.com/MehdiZen/monitor4me/releases/latest).
-2. Lancez-le. Windows peut afficher « Éditeur inconnu » : *Informations complémentaires > Exécuter quand même*.
+2. Lancez-le. Windows peut afficher "Éditeur inconnu" : *Informations complémentaires > Exécuter quand même*.
 3. Au premier lancement, le **Setup Wizard** demande votre tarif électrique (€/kWh) ; acceptez l'UAC.
 4. Le wizard installe et configure les dépendances ci-dessus et le collecteur, puis démarre les services (aussi lancés à chaque démarrage de Windows). Aucun redémarrage requis.
 
 Pour réparer ou réinstaller, ouvrez les paramètres (icône engrenage) et cliquez **Réparer**.
 
-Si aucune donnée n'apparaît (statut « Reconnecting »), activez le serveur web de LibreHardwareMonitor à la main : **Options > Remote Web Server > Run** (port 8085).
+Si aucune donnée n'apparaît (statut "Reconnecting"), activez le serveur web de LibreHardwareMonitor à la main : **Options > Remote Web Server > Run** (port 8085).
 
 ### Option 2 : scripts du dépôt
 
