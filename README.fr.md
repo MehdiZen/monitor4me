@@ -76,7 +76,7 @@ Variables d'environnement (documentées dans [`.env.example`](.env.example), val
 
 | Variable | Utilisée par | Description |
 |---|---|---|
-| `INFLUX_TOKEN` | collecteur, app bureau | Token API InfluxDB. Défini par l'installeur comme variable utilisateur Windows. Une valeur de développement par défaut est utilisée si absente. |
+| `INFLUX_TOKEN` | collecteur, app bureau | Token API InfluxDB. Défini par l'installeur comme variable utilisateur Windows. Il n'y a aucune valeur par défaut : si elle est absente, les requêtes vers InfluxDB sont rejetées. |
 
 Le fichier `.env` n'est **pas** chargé automatiquement : définissez la variable dans votre environnement. Les autres réglages (tarif, TDP CPU/GPU, seuils de température, périphériques) se modifient dans les paramètres du dashboard ; le collecteur les persiste dans `collector/user-config.json` (ignoré par git). Les valeurs fixes (ports, intervalle de lecture, rendement PSU) sont dans [`collector/src/config.ts`](collector/src/config.ts).
 
@@ -131,4 +131,4 @@ monitor4me/
 
 ## Licence
 
-Copyright (c) 2026 Mehdi Zen. monitor4me est **source disponible** sous double licence : gratuit pour un usage personnel non commercial, licence payante pour un usage commercial/professionnel. Voir [LICENSE](LICENSE) pour les termes exacts. Les composants tiers (LibreHardwareMonitor, InfluxDB) conservent leurs propres licences.
+Copyright (c) 2026 Mehdi Zenati. monitor4me est **source disponible** sous double licence : gratuit pour un usage personnel non commercial, licence payante pour un usage commercial/professionnel. Voir [LICENSE](LICENSE) pour les termes exacts. Les composants tiers (LibreHardwareMonitor, InfluxDB) conservent leurs propres licences.

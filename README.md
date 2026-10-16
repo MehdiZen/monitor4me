@@ -76,7 +76,7 @@ Environment variables (documented in [`.env.example`](.env.example), fake values
 
 | Variable | Used by | Description |
 |---|---|---|
-| `INFLUX_TOKEN` | collector, desktop app | InfluxDB API token. Set by the installer as a Windows user variable. A development default is used when unset. |
+| `INFLUX_TOKEN` | collector, desktop app | InfluxDB API token. Set by the installer as a Windows user variable. There is no built-in default: when unset, requests to InfluxDB are rejected. |
 
 The `.env` file is **not** loaded automatically: set the variable in your environment. Other settings (electricity rate, CPU/GPU TDP, temperature thresholds, peripherals) are edited from the dashboard settings; the collector persists them in `collector/user-config.json` (git-ignored). Fixed defaults (ports, poll interval, PSU efficiency) live in [`collector/src/config.ts`](collector/src/config.ts).
 
@@ -131,4 +131,4 @@ monitor4me/
 
 ## License
 
-Copyright (c) 2026 Mehdi Zen. monitor4me is **source-available** under a dual license: free for personal non-commercial use, paid license for commercial/professional use. See [LICENSE](LICENSE) for the exact terms. Third-party components (LibreHardwareMonitor, InfluxDB) keep their own licenses.
+Copyright (c) 2026 Mehdi Zenati. monitor4me is **source-available** under a dual license: free for personal non-commercial use, paid license for commercial/professional use. See [LICENSE](LICENSE) for the exact terms. Third-party components (LibreHardwareMonitor, InfluxDB) keep their own licenses.
