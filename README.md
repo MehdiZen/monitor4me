@@ -1,104 +1,134 @@
 # monitor4me
 
-Dashboard de monitoring hardware PC — température, consommation électrique, coûts, historique.
+**English** | [Français](README.fr.md)
 
-Construit avec **Tauri 2** · **TypeScript** · **InfluxDB**.
+![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
+![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8DB)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)
+![License: source-available](https://img.shields.io/badge/license-source--available-lightgrey)
 
-<img width="1098" height="758" alt="image" src="https://github.com/user-attachments/assets/91628a6b-c901-4043-9db6-fc61890f9ffd" />
+Hardware monitoring dashboard for Windows PCs: temperatures, power draw, electricity cost and history.
 
----
+![monitor4me demo](docs/media/demo.gif)
+
+> The demo uses **synthetic data** (mocked collector and InfluxDB, flagged by a "DEMO" label in the corner), not real measurements. Full video: [docs/media/demo.mp4](docs/media/demo.mp4).
+
+## Features
+
+- **Live sensors**: CPU/GPU temperature, power and clocks, NVMe, PSU rails (+12V / +5V / +3.3V), fan RPM.
+- **Electricity cost**: live cost per hour, today's total, 31-day history with daily detail, monthly projection.
+- **Peripherals**: monitors are auto-detected via WMI, with configurable per-device consumption.
+- **Anomaly detection**: z-score alerts for thermal throttling, GPU clock drops and rail instability.
+- **History charts**: hourly kWh over 24h, 7-day bars, full 31-day table.
+
+## Architecture
+
+```
+LibreHardwareMonitor (:8085, data.json)
+        |  poll every 2 s
+        v
+   collector (Node.js)  --writes-->  InfluxDB 2 (:8086)
+        |                                   ^
+        | WebSocket (:8088, live data)      | Flux queries (history)
+        v                                   |
+              Tauri 2 dashboard (TypeScript, Vite, Chart.js)
+```
+
+| Part | Technology |
+|---|---|
+| Desktop app | Tauri 2, TypeScript, Vite, Chart.js |
+| Collector | Node.js, TypeScript |
+| Sensors | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) web server |
+| Storage | InfluxDB 2, Flux |
+| Monitor detection | WMI via PowerShell |
+
+A Grafana dashboard is also provided in [`grafana/dashboards/pc-monitor.json`](grafana/dashboards/pc-monitor.json).
+
+## Requirements
+
+- Windows 10 (build 1903+) or Windows 11, x64.
+- Internet access during setup (dependencies are downloaded).
+- Installed by the setup: .NET Desktop Runtime 10 (required by LibreHardwareMonitor), InfluxDB 2.7 (port 8086), LibreHardwareMonitor (port 8085), Node.js LTS (collector runtime).
+- Administrator rights (UAC prompt) to install services and scheduled tasks.
 
 ## Installation
 
-### Prérequis système
+### Option 1: installer from the release (recommended)
 
-- Windows 10 (build 1903+) ou Windows 11, x64
-- Connexion internet (le wizard télécharge les dépendances)
+1. Download `monitor4me_x64-setup.exe` from the [latest release](https://github.com/MehdiZen/monitor4me/releases/latest).
+2. Run it. Windows may warn about an unknown publisher: *More info > Run anyway*.
+3. On first launch, the **Setup Wizard** asks for your electricity rate (EUR/kWh); accept the UAC prompt.
+4. The wizard installs and configures the dependencies listed above and the collector, then starts the services (also started at each Windows boot). No reboot required.
 
-### Étapes
+To repair or reinstall, open the settings (gear icon) and click **Repair**.
 
-**1.** Téléchargez **[`monitor4me_x64-setup.exe`](https://github.com/MehdiZen/monitor4me/releases/latest)** depuis la dernière release.
+If no data shows up ("Reconnecting" status), enable the LibreHardwareMonitor web server manually: **Options > Remote Web Server > Run** (port 8085).
 
-**2.** Double-cliquez sur le fichier. Windows peut afficher un avertissement "Éditeur inconnu" — cliquez **Informations complémentaires → Exécuter quand même**.
+### Option 2: scripts from this repository
 
-**3.** Au premier lancement, le **Setup Wizard** s'ouvre automatiquement. Entrez votre tarif électrique (€/kWh) et cliquez **Lancer l'installation**.
+- `monitor4me-install.bat` (or `install.ps1`): Windows Forms installer, pick the components and click *Install* (it elevates itself).
+- `scripts/setup-from-source.ps1`: interactive step-by-step setup from a source checkout (asks confirmation before each step).
+- `uninstall.ps1`: removes monitor4me and, optionally, its dependencies.
 
-**4.** Acceptez la demande d'élévation (UAC) — nécessaire pour installer les services système.
+## Configuration
 
-**5.** Le wizard installe et configure automatiquement :
-   - **.NET Desktop Runtime 10** — requis par LibreHardwareMonitor
-   - **InfluxDB 2.7** — base de données time-series locale (port 8086)
-   - **LibreHardwareMonitor** — lecture des capteurs hardware (port 8085)
-   - **Node.js LTS** — runtime du collecteur
-   - **Collecteur de métriques** — envoie les données dans InfluxDB toutes les 2s
+Environment variables (documented in [`.env.example`](.env.example), fake values only):
 
-**6.** Les services démarrent automatiquement à la fin du wizard, puis à chaque démarrage Windows.
+| Variable | Used by | Description |
+|---|---|---|
+| `INFLUX_TOKEN` | collector, desktop app | InfluxDB API token. Set by the installer as a Windows user variable. A development default is used when unset. |
 
-> Pas de redémarrage requis. Le dashboard est opérationnel immédiatement après le wizard.
+The `.env` file is **not** loaded automatically: set the variable in your environment. Other settings (electricity rate, CPU/GPU TDP, temperature thresholds, peripherals) are edited from the dashboard settings; the collector persists them in `collector/user-config.json` (git-ignored). Fixed defaults (ports, poll interval, PSU efficiency) live in [`collector/src/config.ts`](collector/src/config.ts).
 
-> **Réparer / Réinstaller** : ouvrez les paramètres (⚙) et cliquez **Réparer**.
+## Development
 
-### Activation manuelle du web server LibreHardwareMonitor
+Prerequisites: Node.js, and the [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) (Rust toolchain, WebView2, MSVC build tools).
 
-Le wizard configure automatiquement le web server de LHM. Si les données n'apparaissent pas (statut "Reconnecting"), activez-le manuellement :
+Desktop app (`app/`):
 
-**Options → Remote Web Server → Run** (port 8085)
+```bash
+cd app
+npm install
+npm run dev            # Vite dev server on :5173 (front only)
+npm run tauri dev      # full Tauri app in dev mode
+npm run build          # tsc + vite build
+npm run tauri:release  # tauri build (installer)
+```
 
-<img width="455" height="444" alt="image" src="https://github.com/user-attachments/assets/fdceba3b-64b5-41e1-aac7-29b3dc7145de" />
+Collector (`collector/`):
 
----
+```bash
+cd collector
+npm install
+npm run dev            # ts-node src/index.ts
+npm run build          # tsc -> dist/
+npm start              # node dist/index.js
+```
 
-## Fonctionnalités
+The project has no automated test suite or linter configured. Type checking: `npx tsc --noEmit` in `app/` and in `collector/`.
 
-- **Capteurs en temps réel** — CPU/GPU température · puissance · clocks · NVMe · rails PSU (+12V/+5V/+3.3V) · RPM ventilateurs
-- **Coût électrique** — €/h en direct · total du jour · historique 31 jours avec détail quotidien
-- **Suivi périphériques** — écrans auto-détectés via WMI, consommation par écran configurable
-- **Détection d'anomalies** — alertes z-score pour throttling thermique, chutes de clock GPU, instabilité rails
-- **Graphiques historiques** — kWh horaire 24h · barres 7 jours · tableau complet 31 jours
-
----
-
-## Stack
-
-| | |
-|---|---|
-| App bureau | Tauri 2 · TypeScript · Vite |
-| Graphiques | Chart.js |
-| Collecteur | Node.js · TypeScript |
-| Capteurs | [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) REST API |
-| Stockage | InfluxDB 2 · Flux |
-| Détection écrans | WMI via PowerShell (`Get-PnpDevice`) |
-
----
-
-## Structure
+## Repository layout
 
 ```
 monitor4me/
-├── app/                    App Tauri (bureau)
-│   ├── src/
-│   │   ├── main.ts         Logique UI + graphiques
-│   │   ├── influx.ts       Requêtes Flux vers InfluxDB
-│   │   └── styles.css
-│   └── src-tauri/          Couche Rust (fenêtre, tray, updater)
-├── collector/              Collecteur Node.js
-│   └── src/
-│       ├── index.ts        Boucle principale (toutes les 2s)
-│       ├── lhm.ts          Parsing capteurs LHM
-│       ├── anomaly.ts      Détection anomalies (z-score)
-│       ├── notify.ts       Notifications Windows
-│       └── monitors.ts     Détection écrans WMI
-└── scripts/                Scripts setup/build/release
+├── app/                  Tauri desktop app
+│   ├── src/              UI (main.ts, charts.ts, influx.ts, ws-client.ts, store.ts, styles.css)
+│   └── src-tauri/        Rust layer (window, tray, updater, setup commands)
+├── collector/            Node.js collector (LHM -> InfluxDB + WebSocket)
+│   └── src/              index, lhm, metrics, anomaly, monitors, notify, influx, ws, config
+├── grafana/dashboards/   Optional Grafana dashboard
+├── scripts/              Setup, packaging and release scripts (PowerShell)
+├── docs/media/           Demo video and GIF
+├── install.ps1, monitor4me-install.bat, uninstall.ps1
+└── LICENSE
 ```
 
----
+## Hardware notes
 
-## Notes hardware
+- **RX 9070 XT**: limited LHM GPU support; the collector sets `gpu_power_estimated=true` when estimating.
+- **RAM**: no sensor available on AM5, fixed 10 W estimate.
+- **CPU RAPL**: underestimates by ~7%, corrected by `CPU_RAPL_CORRECTION = 1.07`.
 
-- **RX 9070 XT** : support LHM GPU limité — le collecteur marque `gpu_power_estimated=true` en mode estimation.
-- **RAM** : pas de capteur AM5 disponible, estimation fixe 10W.
-- **CPU RAPL** : sous-estime ~7%, corrigé par `CPU_RAPL_CORRECTION = 1.07`.
+## License
 
----
-
-MIT
+Copyright (c) 2026 Mehdi Zen. monitor4me is **source-available** under a dual license: free for personal non-commercial use, paid license for commercial/professional use. See [LICENSE](LICENSE) for the exact terms. Third-party components (LibreHardwareMonitor, InfluxDB) keep their own licenses.
