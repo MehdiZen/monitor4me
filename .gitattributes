@@ -20,3 +20,12 @@
 *.sig  binary
 *.ico  binary
 *.png  binary
+
+# Statistiques de langages (linguist)
+# Les scripts d'installation, de packaging et de release sont de l'outillage :
+# ils pèsent plus lourd que le code applicatif et écrasent la barre de langages.
+# Exclus des stats, mais toujours versionnés et colorés normalement.
+install.ps1                linguist-detectable=false
+uninstall.ps1              linguist-detectable=false
+monitor4me-install.bat     linguist-detectable=false
+scripts/**                 linguist-detectable=false
