@@ -78,6 +78,8 @@ Variables d'environnement (documentées dans [`.env.example`](.env.example), val
 |---|---|---|
 | `INFLUX_TOKEN` | collecteur, app bureau | Token API InfluxDB. Défini par l'installeur comme variable utilisateur Windows. Il n'y a aucune valeur par défaut : si elle est absente, les requêtes vers InfluxDB sont rejetées. |
 
+> **Note de sécurité.** L'installeur crée le compte admin InfluxDB local avec le mot de passe par défaut `monitor4me-local` (modifiable dans `install.ps1`). Par défaut, InfluxDB écoute sur toutes les interfaces réseau (port 8086) : toute personne de votre réseau pourrait donc s'y connecter avec ce mot de passe. Changez-le après l'installation (interface InfluxDB sur `http://localhost:8086`), ou limitez InfluxDB à `127.0.0.1` / bloquez le port dans votre pare-feu. La base ne contient que des métriques matérielles.
+
 Le fichier `.env` n'est **pas** chargé automatiquement : définissez la variable dans votre environnement. Les autres réglages (tarif, TDP CPU/GPU, seuils de température, périphériques) se modifient dans les paramètres du dashboard ; le collecteur les persiste dans `collector/user-config.json` (ignoré par git). Les valeurs fixes (ports, intervalle de lecture, rendement PSU) sont dans [`collector/src/config.ts`](collector/src/config.ts).
 
 ## Développement

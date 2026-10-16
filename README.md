@@ -78,6 +78,8 @@ Environment variables (documented in [`.env.example`](.env.example), fake values
 |---|---|---|
 | `INFLUX_TOKEN` | collector, desktop app | InfluxDB API token. Set by the installer as a Windows user variable. There is no built-in default: when unset, requests to InfluxDB are rejected. |
 
+> **Security note.** The installer creates the local InfluxDB admin account with the default password `monitor4me-local` (the field can be changed in `install.ps1`). By default InfluxDB listens on all network interfaces (port 8086), so anyone on your network could sign in with that password. Change it after installing (InfluxDB UI at `http://localhost:8086`), or restrict InfluxDB to `127.0.0.1` / block the port in your firewall. The database only holds hardware metrics.
+
 The `.env` file is **not** loaded automatically: set the variable in your environment. Other settings (electricity rate, CPU/GPU TDP, temperature thresholds, peripherals) are edited from the dashboard settings; the collector persists them in `collector/user-config.json` (git-ignored). Fixed defaults (ports, poll interval, PSU efficiency) live in [`collector/src/config.ts`](collector/src/config.ts).
 
 ## Development
